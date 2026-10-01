@@ -343,7 +343,29 @@ setInterval(() => {
   }
 }, 500)
 
+function lanUrls(port) {
+  const nets = networkInterfaces()
+  const urls = []
+  for (const list of Object.values(nets)) {
+    for (const net of list || []) {
+      if (net.family === 'IPv4' && !net.internal) {
+        urls.push(`http://${net.address}:${port}`)
+      }
+    }
+  }
+  return urls
+}
+
 httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`Party ticket server on http://0.0.0.0:${PORT}`)
-  console.log(`Phone / LAN: open this machine's IP on port ${PORT}`)
+  console.log('')
+  console.log('pbon 派對售票已啟動')
+  console.log(`本機: http://localhost:${PORT}`)
+  const urls = lanUrls(PORT)
+  if (urls.length) {
+    console.log('手機請連同一 Wi‑Fi，用下面網址（或掃主辦頁 QR）：')
+    for (const u of urls) console.log(`  ${u}`)
+  } else {
+    console.log('找不到區網 IP，請在系統網路設定查看。')
+  }
+  console.log('')
 })

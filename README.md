@@ -1,37 +1,37 @@
 # pbon 派對售票系統
 
-仿 [ibon 售票系統](https://ticket.ibon.com.tw/) 的**假搶票網站**：首頁有一堆假活動，**只有派對主打場能真的買票**。
+仿 [ibon 售票系統](https://ticket.ibon.com.tw/) 的假搶票網站：首頁有很多假活動，**只有派對主打場能真的買票**。
 
-## 推薦免費上架：Render
+## 派對怎麼玩（推薦：自家 Wi‑Fi）
 
-1. 把程式推到 GitHub
-2. 到 [Render](https://render.com) 用 GitHub 登入
-3. **New → Web Service**，選這個 repo
-4. 會讀 `render.yaml`（或手動填）：
-   - Build: `npm install && npm run build`
-   - Start: `npm start`
-   - Plan: **Free**
-5. 部署完會得到網址，例如 `https://pbon-party-ticket.onrender.com`
-6. 手機打開該網址就能玩
-
-注意：Render 免費版閒置會休眠，第一次開啟可能要等 30～60 秒。派對開始前先讓主辦打開網站「叫醒」它。
-
-## 怎麼玩（15 人 OK）
-
-1. 大家打開同一個網站首頁（看起來很像售票站）
-2. 主辦進「主辦」→ **接管首頁主打場**
-3. 朋友點首頁「PARTY HOUSE…／查看活動／購票」
-4. 其他活動點進去也能看，但會被擋（流量控管／已結束）
-5. 開賣後一起搶
-
-## 本機／筆電開
+用你的電腦當主機，朋友連你家 Wi‑Fi，比手速搶票。
 
 ```bash
 npm install
 npm run party
 ```
 
-開 `http://筆電區網IP:3001`，再分享給同 Wi‑Fi 朋友。
+終端機會印出區網網址，例如：
+
+```text
+http://192.168.x.x:3001
+```
+
+1. **電腦**用這個網址開啟（不要用別人手機開 `localhost`）
+2. 主辦點「主辦」→ **接管首頁主打場**
+3. 把頁面上的 **QR／連結** 傳給朋友
+4. 大家逛假活動頁暖身，真正開賣只搶派對那場
+5. 電腦別休眠、別關終端機
+
+約 15 人同 Wi‑Fi 沒問題。
+
+### Windows 查 IP（備用）
+
+命令提示字元輸入 `ipconfig`，看「無線區域網路」的 IPv4。
+
+### Mac 查 IP（備用）
+
+終端機輸入 `ipconfig getifaddr en0`。
 
 ## 開發
 
