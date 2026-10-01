@@ -14,6 +14,7 @@ import {
 } from '../api'
 import { Shell } from '../components/Layout'
 import { formatCardForShare, generateFakeCard, type FakeCard } from '../lib/cards'
+import { fileToDataUrl } from '../lib/imageUpload'
 import { saveSession } from '../hooks/useRoom'
 import type { FakeEvent } from '../data/catalog'
 
@@ -47,16 +48,17 @@ function toLocalInputValue(d: Date) {
 const emptyEventForm = () => ({
   code: '',
   hostId: '',
-  title: 'PARTY HOUSE 2026 小派對 WORLD TOUR',
-  subtitle: '＜FUN ONLY＞ in LIVING ROOM',
-  venue: '你家客廳・派對主舞台',
-  dateText: '今晚開演',
-  saleAt: toLocalInputValue(new Date(Date.now() + 10 * 60 * 1000)),
+  title: 'YAWASABI 「SUPER PLANET」 in TAIPEI',
+  subtitle: '10-city Dome & Stadium Tour 2026-2027',
+  venue: 'TAIPEI DOME 台北大巨蛋',
+  dateText: '2026/10/10（六）～10/11（日）',
+  saleAt: toLocalInputValue(new Date('2026-10-10T10:00:00')),
   maxPerOrder: 2,
   failChance: 15,
   featured: true,
-  totalTickets: 20,
-  price: 2800,
+  totalTickets: 50,
+  price: 3800,
+  imageUrl: '/events/yawasabi-super-planet.jpg',
 })
 
 export function AdminPage() {
@@ -122,6 +124,7 @@ export function AdminPage() {
           failChance: form.failChance / 100,
           featured: form.featured,
           totalTickets: form.totalTickets,
+          imageUrl: form.imageUrl,
         })
         setMsg(`已更新 ${form.code}`)
       } else {
@@ -138,6 +141,7 @@ export function AdminPage() {
           featured: form.featured,
           totalTickets: form.totalTickets,
           price: form.price,
+          imageUrl: form.imageUrl,
         })
         saveSession({
           code: room.code,
@@ -173,9 +177,27 @@ export function AdminPage() {
       featured: ev.featured,
       totalTickets: ev.totalTickets || 20,
       price: 2800,
+      imageUrl: ev.imageUrl || '',
     })
     setTab('events')
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const onPickImage = async (
+    file: File | undefined,
+    apply: (url: string) => void,
+  ) => {
+    if (!file) return
+    setBusy(true)
+    setError(null)
+    try {
+      apply(await fileToDataUrl(file))
+      setMsg('圖片已載入，記得按儲存')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '圖片處理失敗')
+    } finally {
+      setBusy(false)
+    }
   }
 
   if (!authed) {
@@ -325,6 +347,29 @@ export function AdminPage() {
                   />
                 </div>
               </div>
+              <div className="field">
+                <label>海報圖片網址</label>
+                <input
+                  value={form.imageUrl}
+                  onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
+                  placeholder="/events/yawasabi-super-planet.jpg 或 https://..."
+                />
+              </div>
+              <div className="field">
+                <label>或上傳海報</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    void onPickImage(e.target.files?.[0], (url) =>
+                      setForm((f) => ({ ...f, imageUrl: url })),
+                    )
+                  }
+                />
+              </div>
+              {form.imageUrl && (
+                <img src={form.imageUrl} alt="活動海報預覽" className="decoy-preview" />
+              )}
               <label className="check-row">
                 <input
                   type="checkbox"
@@ -511,7 +556,19 @@ export function AdminPage() {
                   <input
                     value={decoyForm.imageUrl || ''}
                     onChange={(e) => setDecoyForm({ ...decoyForm, imageUrl: e.target.value })}
-                    placeholder="https://..."
+                    placeholder="https://... 或 /decoys/xxx.jpg"
+                  />
+                </div>
+                <div className="field">
+                  <label>或上傳照片</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) =>
+                      void onPickImage(e.target.files?.[0], (url) =>
+                        setDecoyForm({ ...decoyForm, imageUrl: url }),
+                      )
+                    }
                   />
                 </div>
                 {decoyForm.imageUrl && (

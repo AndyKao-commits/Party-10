@@ -33,6 +33,7 @@ type RoomRow = {
   queue_delay_ms: number
   fail_chance: number
   notices: string[] | null
+  image_url?: string | null
 }
 
 type AreaRow = {
@@ -103,6 +104,7 @@ async function loadRoom(code: string): Promise<Room> {
     maxPerOrder: r.max_per_order,
     queueDelayMs: r.queue_delay_ms,
     failChance: r.fail_chance,
+    imageUrl: r.image_url || '',
     areas: mapAreas((areas || []) as AreaRow[]),
     playerCount: playerCount || 0,
     orderCount: (orders || []).length,
@@ -167,7 +169,7 @@ export const supabaseApi = {
     await sb.rpc('ensure_featured_room')
     const { data, error } = await sb
       .from('rooms')
-      .select('code,host_id,title,subtitle,venue,date_text,sale_at,sale_open,is_featured,max_per_order,fail_chance')
+      .select('code,host_id,title,subtitle,venue,date_text,sale_at,sale_open,is_featured,max_per_order,fail_chance,image_url')
       .order('is_featured', { ascending: false })
       .order('sale_at', { ascending: true })
     if (error) throw new Error(error.message)
@@ -188,6 +190,7 @@ export const supabaseApi = {
           featured: Boolean(r.is_featured),
           maxPerOrder: Number(r.max_per_order || 2),
           failChance: Number(r.fail_chance || 0),
+          imageUrl: (r.image_url as string) || '',
           totalTickets,
           remaining,
         }
@@ -210,8 +213,13 @@ export const supabaseApi = {
       p_fail_chance: body.failChance ?? null,
       p_featured: body.featured ?? null,
       p_total_tickets: body.totalTickets ?? null,
+      p_image_url: body.imageUrl ?? null,
     })
     if (error) throw new Error(error.message)
+    // Fallback if RPC not yet migrated with image_url
+    if (body.imageUrl != null) {
+      await sb.from('rooms').update({ image_url: String(body.imageUrl) }).eq('code', String(body.code || '').toUpperCase())
+    }
     const code = (data as { code?: string })?.code || String(body.code)
     return { room: await loadRoom(code) }
   },
@@ -249,10 +257,10 @@ export const supabaseApi = {
     const { error } = await sb.from('rooms').insert({
       code,
       host_id: hostId,
-      title: String(body.title || 'PARTY HOUSE 2026 小派對 WORLD TOUR').slice(0, 80),
-      subtitle: String(body.subtitle || '＜FUN ONLY＞ in LIVING ROOM').slice(0, 80),
-      venue: String(body.venue || '你家客廳・派對主舞台').slice(0, 80),
-      date_text: String(body.dateText || '今晚・派對開演').slice(0, 80),
+      title: String(body.title || 'YAWASABI 「SUPER PLANET」 in TAIPEI').slice(0, 80),
+      subtitle: String(body.subtitle || '10-city Dome & Stadium Tour 2026-2027').slice(0, 80),
+      venue: String(body.venue || 'TAIPEI DOME 台北大巨蛋').slice(0, 80),
+      date_text: String(body.dateText || '2026/10/10（六）～10/11（日）').slice(0, 80),
       sale_at: saleAt,
       sale_open: false,
       max_per_order: Math.min(4, Math.max(1, Number(body.maxPerOrder || 2))),
@@ -264,6 +272,7 @@ export const supabaseApi = {
         '每筆訂單限購張數以主辦設定為準。流量控管中請耐心等候。',
       ],
       is_featured: featured,
+      image_url: String(body.imageUrl || ''),
     })
     if (error) throw new Error(error.message)
 

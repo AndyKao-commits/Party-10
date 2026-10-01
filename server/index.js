@@ -50,15 +50,16 @@ function createRoomObject(body = {}, { code, hostId, hostName } = {}) {
   const room = {
     code,
     hostId: resolvedHostId,
-    title: String(body.title || 'PARTY HOUSE 2026 小派對 WORLD TOUR').slice(0, 80),
-    subtitle: String(body.subtitle || '＜FUN ONLY＞ in LIVING ROOM').slice(0, 80),
-    venue: String(body.venue || '你家客廳・派對主舞台').slice(0, 80),
-    dateText: String(body.dateText || '今晚・派對開演').slice(0, 80),
+    title: String(body.title || 'YAWASABI 「SUPER PLANET」 in TAIPEI').slice(0, 80),
+    subtitle: String(body.subtitle || '10-city Dome & Stadium Tour 2026-2027').slice(0, 80),
+    venue: String(body.venue || 'TAIPEI DOME 台北大巨蛋').slice(0, 80),
+    dateText: String(body.dateText || '2026/10/10（六）～10/11（日）').slice(0, 80),
     saleAt: Number.isFinite(saleAt) ? saleAt : Date.now() + Math.max(5, saleInSec) * 1000,
     saleOpen: false,
     maxPerOrder: Math.min(4, Math.max(1, Number(body.maxPerOrder || 2))),
     queueDelayMs: Math.min(8000, Math.max(800, Number(body.queueDelayMs || 2500))),
     failChance: Math.min(0.6, Math.max(0, Number(body.failChance ?? 0.15))),
+    imageUrl: String(body.imageUrl || ''),
     areas: Array.isArray(body.areas) && body.areas.length
       ? body.areas.map((a, i) => ({
           id: String(a.id || `area-${i}`),
@@ -82,19 +83,46 @@ function createRoomObject(body = {}, { code, hostId, hostName } = {}) {
   return room
 }
 
+function yawasabiDefaults() {
+  return {
+    title: 'YAWASABI 「SUPER PLANET」 in TAIPEI',
+    subtitle: '10-city Dome & Stadium Tour 2026-2027',
+    venue: 'TAIPEI DOME 台北大巨蛋',
+    dateText: '2026/10/10（六）～10/11（日）',
+    imageUrl: '/events/yawasabi-super-planet.jpg',
+    saleAt: new Date('2026-10-10T10:00:00+08:00').toISOString(),
+    failChance: 0.15,
+    maxPerOrder: 2,
+    areas: [
+      { id: 'vip', name: 'VIP 搖滾區', price: 6800, total: 6, color: '#e11d48' },
+      { id: 'a', name: '特 A 區', price: 4800, total: 10, color: '#ea580c' },
+      { id: 'b', name: '特 B 區', price: 3800, total: 14, color: '#ca8a04' },
+      { id: 'c', name: '二樓座席', price: 2800, total: 20, color: '#16a34a' },
+    ],
+  }
+}
+
 function ensureFeaturedRoom() {
   featuredCode = String(process.env.FEATURED_CODE || 'PARTY0').toUpperCase()
   if (!rooms.has(featuredCode)) {
-    const room = createRoomObject(
-      {
-        saleInSec: 365 * 24 * 3600,
-        failChance: 0.12,
-        maxPerOrder: 2,
-      },
-      { code: featuredCode, hostName: '系統' },
-    )
+    const room = createRoomObject(yawasabiDefaults(), { code: featuredCode, hostName: '系統' })
     room.saleOpen = false
     rooms.set(featuredCode, room)
+  } else {
+    const room = rooms.get(featuredCode)
+    // One-time upgrade if still the old living-room party defaults
+    if (room && /PARTY HOUSE|客廳/.test(room.title || '') && !room.imageUrl) {
+      const d = yawasabiDefaults()
+      Object.assign(room, {
+        title: d.title,
+        subtitle: d.subtitle,
+        venue: d.venue,
+        dateText: d.dateText,
+        imageUrl: d.imageUrl,
+        saleAt: new Date(d.saleAt).getTime(),
+        areas: d.areas.map((a) => ({ ...a, remaining: a.total })),
+      })
+    }
   }
   return rooms.get(featuredCode)
 }
@@ -127,6 +155,7 @@ function publicRoom(room) {
     maxPerOrder: room.maxPerOrder,
     queueDelayMs: room.queueDelayMs,
     failChance: room.failChance,
+    imageUrl: room.imageUrl || '',
     areas: room.areas.map((a) => ({
       id: a.id,
       name: a.name,
@@ -198,6 +227,7 @@ app.get('/api/events', (_req, res) => {
       featured: r.code === featuredCode,
       maxPerOrder: r.maxPerOrder,
       failChance: r.failChance,
+      imageUrl: r.imageUrl || '',
       totalTickets: r.areas.reduce((s, a) => s + a.total, 0),
       remaining: r.areas.reduce((s, a) => s + a.remaining, 0),
     }))
@@ -262,6 +292,7 @@ app.patch('/api/rooms/:code', (req, res) => {
   }
   if (body.maxPerOrder != null) room.maxPerOrder = Math.min(4, Math.max(1, Number(body.maxPerOrder)))
   if (body.failChance != null) room.failChance = Math.min(0.6, Math.max(0, Number(body.failChance)))
+  if (body.imageUrl != null) room.imageUrl = String(body.imageUrl)
   if (body.featured) featuredCode = code
   const totalTickets = Number(body.totalTickets || 0)
   if (totalTickets > 0) {
