@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { purchase } from '../api'
+import { purchase, validateCard } from '../api'
 import { Shell, StepBar } from '../components/Layout'
 import { loadSession, useRoom } from '../hooks/useRoom'
 import type { Order } from '../types'
@@ -14,10 +14,14 @@ export function CheckoutPage() {
   const areaId = params.get('area') || ''
   const qty = Number(params.get('qty') || 1)
   const area = room?.areas.find((a) => a.id === areaId)
-  const [phone, setPhone] = useState('0912345678')
+  const [phone, setPhone] = useState('')
   const [agree, setAgree] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [cardNumber, setCardNumber] = useState('')
+  const [expMonth, setExpMonth] = useState('')
+  const [expYear, setExpYear] = useState('')
+  const [cvv, setCvv] = useState('')
 
   const total = useMemo(() => (area ? area.price * qty : 0), [area, qty])
 
@@ -37,10 +41,22 @@ export function CheckoutPage() {
       setError('請勾選同意購票與退票規則（假的）')
       return
     }
+    if (!cardNumber.trim() || !expMonth || !expYear || !cvv) {
+      setError('請輸入派對假信用卡資料')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
-      // Fake thinking / 3D auth delay
+      const check = await validateCard({
+        cardNumber,
+        expMonth: expMonth.padStart(2, '0'),
+        expYear: expYear.padStart(2, '0'),
+        cvv,
+      })
+      if (!check.ok) {
+        throw new Error('信用卡驗證失敗：請使用主辦發給你的假卡資料')
+      }
       await new Promise((r) => setTimeout(r, 900 + Math.random() * 800))
       const res = await purchase(code, {
         playerId: session?.playerId || '',
@@ -53,9 +69,6 @@ export function CheckoutPage() {
     } catch (err) {
       const e = err as Error & { code?: string }
       setError(e.message)
-      if (e.code === 'SOLD_OUT' || e.code === 'BUSY') {
-        // stay and let them retry or go back
-      }
     } finally {
       setBusy(false)
     }
@@ -72,42 +85,84 @@ export function CheckoutPage() {
               <strong>{area.name}</strong> × {qty}
             </div>
             <div>小計 NT$ {total.toLocaleString()}</div>
-            <div className="muted" style={{ fontSize: 12 }}>購物車保留時間（假的）09:59</div>
           </div>
 
           <div className="field">
             <label>手機號碼</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              inputMode="tel"
+              placeholder="0912345678"
+            />
           </div>
+
+          <h3 style={{ fontSize: 15, margin: '8px 0' }}>信用卡付款（假卡）</h3>
           <div className="field">
-            <label>付款方式</label>
-            <select defaultValue="card">
-              <option value="card">信用卡（假的，不會扣款）</option>
-              <option value="atm">ATM 虛擬帳號（假的）</option>
-              <option value="party">用真心付款</option>
-            </select>
+            <label>卡號</label>
+            <input
+              value={cardNumber}
+              onChange={(e) => setCardNumber(e.target.value)}
+              inputMode="numeric"
+              autoComplete="cc-number"
+              placeholder="主辦發給你的卡號"
+            />
           </div>
+          <div className="field-row">
+            <div className="field">
+              <label>月</label>
+              <input
+                value={expMonth}
+                onChange={(e) => setExpMonth(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                inputMode="numeric"
+                placeholder="MM"
+              />
+            </div>
+            <div className="field">
+              <label>年</label>
+              <input
+                value={expYear}
+                onChange={(e) => setExpYear(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                inputMode="numeric"
+                placeholder="YY"
+              />
+            </div>
+            <div className="field">
+              <label>安全碼</label>
+              <input
+                value={cvv}
+                onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                inputMode="numeric"
+                placeholder="4 碼"
+              />
+            </div>
+          </div>
+
           <div className="field">
             <label>取票方式</label>
-            <select defaultValue="ibon">
-              <option value="ibon">pbon 機台取票（走到客廳角落即可）</option>
+            <select defaultValue="eticket">
               <option value="eticket">電子票（截圖）</option>
+              <option value="ibon">pbon 機台取票</option>
             </select>
           </div>
 
-          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, marginBottom: 14 }}>
+          <label className="check-row">
             <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-            <span>我已閱讀並同意網路服務契約、購票與退票規則（全部都是假的）。</span>
+            <span>我已閱讀並同意購票規則（全部都是假的）。</span>
           </label>
 
-          {error && <div className="error-box shake" style={{ marginBottom: 12 }}>{error}</div>}
+          {error && (
+            <div className="error-box shake" style={{ marginBottom: 12 }}>
+              {error}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-ghost" onClick={() => nav(-1)} disabled={busy}>
               上一步
             </button>
             <button className="btn btn-orange" style={{ flex: 1 }} onClick={onPay} disabled={busy}>
-              {busy ? '交易處理中…' : '確認購票'}
+              {busy ? '交易處理中…' : '確認刷卡購票'}
             </button>
           </div>
         </div>
@@ -145,7 +200,6 @@ export function SuccessPage() {
           <div className="status-pill">訂票完成</div>
           <h2 style={{ marginBottom: 4 }}>恭喜搶到假票！</h2>
           <p className="muted">請截圖保存，這是你今晚的戰利品。</p>
-
           <div className="ticket-stub">
             <div className="muted" style={{ fontSize: 12 }}>pbon 派對售票系統</div>
             <div style={{ fontWeight: 800, fontSize: 18, margin: '8px 0' }}>{order.areaName}</div>
@@ -157,7 +211,6 @@ export function SuccessPage() {
             </div>
             <div className="muted" style={{ fontSize: 12 }}>取票序號（假的）</div>
           </div>
-
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link className="btn btn-green" to={`/r/${code}`}>
               回活動頁看戰況

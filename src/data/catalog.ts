@@ -11,7 +11,7 @@ export type FakeEvent = {
   badge?: string
   gradient: string
   blurb: string
-  /** Only the party event is buyable */
+  imageUrl?: string
   buyable?: boolean
 }
 

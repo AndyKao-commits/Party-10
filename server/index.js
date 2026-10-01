@@ -188,6 +188,7 @@ app.get('/api/events', (_req, res) => {
   const events = [...rooms.values()]
     .map((r) => ({
       code: r.code,
+      hostId: r.hostId,
       title: r.title,
       subtitle: r.subtitle,
       venue: r.venue,
@@ -195,6 +196,10 @@ app.get('/api/events', (_req, res) => {
       saleAt: r.saleAt,
       saleOpen: r.saleOpen || Date.now() >= r.saleAt,
       featured: r.code === featuredCode,
+      maxPerOrder: r.maxPerOrder,
+      failChance: r.failChance,
+      totalTickets: r.areas.reduce((s, a) => s + a.total, 0),
+      remaining: r.areas.reduce((s, a) => s + a.remaining, 0),
     }))
     .sort((a, b) => Number(b.featured) - Number(a.featured) || a.saleAt - b.saleAt)
   res.json({ events })
@@ -218,11 +223,71 @@ app.post('/api/rooms', (req, res) => {
   const hostId = randomUUID()
   const hostName = String(body.hostName || '主辦人').slice(0, 20)
   const room = createRoomObject(body, { code, hostId, hostName })
+  const totalTickets = Math.max(0, Number(body.totalTickets || 0))
+  if (totalTickets > 0) {
+    const price = Math.max(1, Number(body.price || 2800))
+    room.areas = [
+      {
+        id: 'general',
+        name: '全票區',
+        price,
+        total: totalTickets,
+        remaining: totalTickets,
+        color: '#16a34a',
+      },
+    ]
+  }
   if (body.featured) {
     featuredCode = code
   }
   rooms.set(code, room)
   res.json({ hostId, room: publicRoom(room) })
+})
+
+app.patch('/api/rooms/:code', (req, res) => {
+  const code = String(req.params.code).toUpperCase()
+  const room = rooms.get(code)
+  if (!room) return res.status(404).json({ error: '找不到房間' })
+  const body = req.body || {}
+  if (body.title) room.title = String(body.title).slice(0, 80)
+  if (body.subtitle != null) room.subtitle = String(body.subtitle).slice(0, 80)
+  if (body.venue != null) room.venue = String(body.venue).slice(0, 80)
+  if (body.dateText != null) room.dateText = String(body.dateText).slice(0, 80)
+  if (body.saleAt) {
+    const t = new Date(body.saleAt).getTime()
+    if (Number.isFinite(t)) {
+      room.saleAt = t
+      if (t > Date.now()) room.saleOpen = false
+    }
+  }
+  if (body.maxPerOrder != null) room.maxPerOrder = Math.min(4, Math.max(1, Number(body.maxPerOrder)))
+  if (body.failChance != null) room.failChance = Math.min(0.6, Math.max(0, Number(body.failChance)))
+  if (body.featured) featuredCode = code
+  const totalTickets = Number(body.totalTickets || 0)
+  if (totalTickets > 0) {
+    room.areas = [
+      {
+        id: 'general',
+        name: '全票區',
+        price: room.areas[0]?.price || 2800,
+        total: totalTickets,
+        remaining: totalTickets,
+        color: '#16a34a',
+      },
+    ]
+  }
+  pushRoom(code)
+  res.json({ room: publicRoom(room) })
+})
+
+app.post('/api/rooms/:code/admin-open', (req, res) => {
+  const code = String(req.params.code).toUpperCase()
+  const room = rooms.get(code)
+  if (!room) return res.status(404).json({ error: '找不到房間' })
+  room.saleOpen = true
+  room.saleAt = Date.now()
+  pushRoom(code)
+  res.json({ room: publicRoom(room) })
 })
 
 app.get('/api/rooms/:code', (req, res) => {
