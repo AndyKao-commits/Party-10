@@ -9,6 +9,8 @@ import {
   listCards,
   listDecoys,
   listEvents,
+  listPurchaseRecords,
+  type PurchaseRecord,
   updateRoom,
   upsertDecoy,
   type LiveEvent,
@@ -22,7 +24,7 @@ import type { FakeEvent } from '../data/catalog'
 const ADMIN_KEY = 'pbon-admin'
 const DEFAULT_PASS = 'party2026'
 
-type Tab = 'events' | 'decoys' | 'cards'
+type Tab = 'orders' | 'events' | 'decoys' | 'cards'
 
 function expectedPassword() {
   return (import.meta.env.VITE_ADMIN_PASSWORD as string | undefined) || DEFAULT_PASS
@@ -66,6 +68,10 @@ export function AdminPage() {
   const [password, setPassword] = useState('')
   const [loginError, setLoginError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('events')
+  const [records,setRecords]=useState<PurchaseRecord[]>([])
+  const [recordFilter,setRecordFilter]=useState('')
+  const [recordEvent,setRecordEvent]=useState('all')
+  const [recordError,setRecordError]=useState('')
   const [events, setEvents] = useState<LiveEvent[]>([])
   const [decoys, setDecoys] = useState<FakeEvent[]>([])
   const [cards, setCards] = useState<FakeCard[]>([])
@@ -85,6 +91,8 @@ export function AdminPage() {
       listDecoys().catch(() => ({ events: [] as FakeEvent[] })),
       listCards().catch(() => ({ cards: [] as FakeCard[] })),
     ])
+    try {const result=await listPurchaseRecords();setRecords(result.orders);setRecordError('')}
+    catch(err) {setRecordError(err instanceof Error ? err.message : '購票紀錄載入失敗')}
     setEvents(ev.events)
     setDecoys(de.events)
     setCards(ca.cards)
@@ -241,6 +249,7 @@ export function AdminPage() {
           {(
             [
               ['events', '活動'],
+              ['orders', '購票紀錄'],
               ['decoys', '假活動'],
               ['cards', '假信用卡'],
             ] as const
@@ -249,7 +258,7 @@ export function AdminPage() {
               key={id}
               type="button"
               className={`admin-tab ${tab === id ? 'active' : ''}`}
-              onClick={() => setTab(id)}
+              onClick={() => {setTab(id); if (id === 'orders') void refresh()}}
             >
               {label}
             </button>
@@ -259,6 +268,20 @@ export function AdminPage() {
         {error && <div className="error-box">{error}</div>}
         {msg && <div className="status-pill" style={{ margin: '8px 0' }}>{msg}</div>}
 
+        {tab === 'orders' && <section className="page-card notice-box">
+          <div className="admin-top"><h3>購票紀錄</h3><button className="btn btn-ghost" onClick={() => void refresh()}>重新整理</button></div>
+          <p className="muted">只有成功買到真座位的訂單會列在這裡。</p>
+          <div className="field"><label htmlFor="order-event">活動</label><select id="order-event" value={recordEvent} onChange={e => setRecordEvent(e.target.value)}><option value="all">全部活動</option>{events.map(e => <option key={e.code} value={e.code}>{e.title}（{e.code}）</option>)}</select></div>
+          <div className="field"><label htmlFor="order-search">搜尋購票人、票區、座位或訂單</label><input id="order-search" value={recordFilter} onChange={e => setRecordFilter(e.target.value)} placeholder="輸入姓名、座位或訂單編號"/></div>
+          {recordError ? <div role="alert" className="error-box">{recordError}</div> : (() => {
+            const filtered=records.filter(o => (recordEvent === 'all' || recordEvent === o.eventCode) && [o.nickname,o.areaName,o.code,o.eventTitle,...o.seats].join(' ').toLowerCase().includes(recordFilter.trim().toLowerCase()))
+            return <><p>成功訂單 {filtered.length} 筆 · 共 {filtered.reduce((n,o) => n+o.qty,0)} 張</p>{filtered.length === 0 ? <p className="muted">{records.length ? '沒有符合條件的訂單' : '目前還沒有成功購票紀錄'}</p> : filtered.map(o => <article className="purchase-record" key={o.id}>
+              <div className="purchase-record-head"><strong>{o.nickname}</strong><span className="status-pill">購票成功</span></div>
+              <p>{o.eventTitle} <small>（{o.eventCode}）</small></p>
+              <dl><dt>票區 / 張數</dt><dd>{o.areaName} · {o.qty} 張</dd><dt>座位</dt><dd>{o.seats.join('、')}</dd><dt>成交金額</dt><dd>{o.unitPrice == null ? '舊訂單未記錄金額' : `NT$ ${(o.unitPrice*o.qty).toLocaleString()}`}</dd><dt>購票時間</dt><dd>{new Date(o.createdAt).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false})}</dd><dt>取票序號</dt><dd className="order-code">{o.code}</dd></dl>
+            </article>)}</>
+          })()}
+        </section>}
         {tab === 'events' && (
           <>
             <form className="page-card host-panel" onSubmit={onSaveEvent}>
