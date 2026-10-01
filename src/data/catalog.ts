@@ -32,21 +32,6 @@ export const BANNERS = [
 
 export const FAKE_EVENTS: FakeEvent[] = [
   {
-    id: 'party',
-    slug: 'party',
-    title: 'PARTY HOUSE 2026 小派對 WORLD TOUR',
-    subtitle: '＜FUN ONLY＞ in LIVING ROOM',
-    category: 'party',
-    venue: '你家客廳・派對主舞台',
-    dateText: '今晚開演（假的）',
-    priceText: 'NT$2,800～$5,800',
-    status: 'hot',
-    badge: '唯一可購票',
-    gradient: 'linear-gradient(160deg,#0b3d2c 0%,#145c3f 40%,#1a1a1a 100%)',
-    blurb: '本場才是派對搶票主活動。其他節目都是裝飾用假頁面。',
-    buyable: true,
-  },
-  {
     id: '39961',
     slug: '39961',
     title: 'MAMAMOO 2026 WORLD TOUR ＜4WARD＞ in TAIPEI',

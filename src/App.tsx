@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { HostPage, JoinPage } from './pages/Home'
+import { JoinPage } from './pages/Home'
 import { ActivityPage } from './pages/Activity'
+import { AdminPage } from './pages/Admin'
 import { AreaPage, QtyPage, QueuePage } from './pages/BuyFlow'
 import { CheckoutPage, SuccessPage } from './pages/Checkout'
 import {
@@ -22,7 +23,8 @@ export default function App() {
         <Route path="/search" element={<SearchPage />} />
         <Route path="/news" element={<NewsPage />} />
         <Route path="/orders" element={<OrdersPage />} />
-        <Route path="/host" element={<HostPage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/host" element={<Navigate to="/admin" replace />} />
         <Route path="/join" element={<JoinPage />} />
         <Route path="/r/:code" element={<ActivityPage />} />
         <Route path="/r/:code/queue" element={<QueuePage />} />

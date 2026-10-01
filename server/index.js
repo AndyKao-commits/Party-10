@@ -45,6 +45,7 @@ function createRoomObject(body = {}, { code, hostId, hostName } = {}) {
   const saleInSec = Number(body.saleInSec ?? 120)
   const resolvedHostId = hostId || randomUUID()
   const resolvedHostName = String(hostName || body.hostName || '主辦人').slice(0, 20)
+  const saleAt = body.saleAt ? new Date(body.saleAt).getTime() : Date.now() + Math.max(5, saleInSec) * 1000
   /** @type {Room} */
   const room = {
     code,
@@ -53,7 +54,7 @@ function createRoomObject(body = {}, { code, hostId, hostName } = {}) {
     subtitle: String(body.subtitle || '＜FUN ONLY＞ in LIVING ROOM').slice(0, 80),
     venue: String(body.venue || '你家客廳・派對主舞台').slice(0, 80),
     dateText: String(body.dateText || '今晚・派對開演').slice(0, 80),
-    saleAt: Date.now() + Math.max(5, saleInSec) * 1000,
+    saleAt: Number.isFinite(saleAt) ? saleAt : Date.now() + Math.max(5, saleInSec) * 1000,
     saleOpen: false,
     maxPerOrder: Math.min(4, Math.max(1, Number(body.maxPerOrder || 2))),
     queueDelayMs: Math.min(8000, Math.max(800, Number(body.queueDelayMs || 2500))),
@@ -182,6 +183,23 @@ app.get('/api/featured', (_req, res) => {
   res.json({ room: publicRoom(room), hostHint: 'POST /api/featured/claim-host' })
 })
 
+app.get('/api/events', (_req, res) => {
+  ensureFeaturedRoom()
+  const events = [...rooms.values()]
+    .map((r) => ({
+      code: r.code,
+      title: r.title,
+      subtitle: r.subtitle,
+      venue: r.venue,
+      dateText: r.dateText,
+      saleAt: r.saleAt,
+      saleOpen: r.saleOpen || Date.now() >= r.saleAt,
+      featured: r.code === featuredCode,
+    }))
+    .sort((a, b) => Number(b.featured) - Number(a.featured) || a.saleAt - b.saleAt)
+  res.json({ events })
+})
+
 app.post('/api/featured/claim-host', (req, res) => {
   const room = ensureFeaturedRoom()
   const nickname = String(req.body?.nickname || '主辦人').slice(0, 20)
@@ -200,6 +218,9 @@ app.post('/api/rooms', (req, res) => {
   const hostId = randomUUID()
   const hostName = String(body.hostName || '主辦人').slice(0, 20)
   const room = createRoomObject(body, { code, hostId, hostName })
+  if (body.featured) {
+    featuredCode = code
+  }
   rooms.set(code, room)
   res.json({ hostId, room: publicRoom(room) })
 })

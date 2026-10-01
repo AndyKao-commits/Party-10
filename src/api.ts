@@ -4,6 +4,17 @@ import { supabaseApi } from './lib/supabaseApi'
 
 const API = import.meta.env.VITE_API_URL || ''
 
+export type LiveEvent = {
+  code: string
+  title: string
+  subtitle: string
+  venue: string
+  dateText: string
+  saleAt: number
+  saleOpen: boolean
+  featured: boolean
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
@@ -17,6 +28,11 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     throw err
   }
   return data as T
+}
+
+export function listEvents() {
+  if (isSupabaseMode) return supabaseApi.listEvents()
+  return req<{ events: LiveEvent[] }>('/api/events')
 }
 
 export function createRoom(body: Record<string, unknown>) {

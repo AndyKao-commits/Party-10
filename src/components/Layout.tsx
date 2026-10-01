@@ -1,11 +1,10 @@
 import { Link, NavLink } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { isSupabaseMode } from '../lib/supabase'
 
 export function DemoBanner() {
   return (
     <div className="demo-banner">
-      假的 · 派對娛樂專用 · 無真實票務效力 · FAKE TICKETING FOR PARTY FUN ONLY
+      本站為派對娛樂展示系統 · 票券無真實效力
     </div>
   )
 }
@@ -16,23 +15,25 @@ export function Header() {
       <div className="site-header__inner">
         <Link to="/" className="brand">
           <span className="brand__mark">pbon</span>
-          <span className="brand__sub">派對售票系統</span>
+          <span className="brand__sub">售票系統</span>
         </Link>
         <nav className="header-links header-links--desktop">
-          <NavLink to="/">熱門活動</NavLink>
-          <NavLink to="/search?q=">詳細搜尋</NavLink>
+          <NavLink to="/" end>
+            熱門活動
+          </NavLink>
+          <NavLink to="/search">詳細搜尋</NavLink>
           <NavLink to="/orders">訂單查詢</NavLink>
           <NavLink to="/news">公告</NavLink>
-          <NavLink to="/host">主辦</NavLink>
         </nav>
       </div>
       <nav className="header-subnav">
-        <NavLink to="/">首頁</NavLink>
-        <NavLink to="/ActivityInfo/Details/party">派對購票</NavLink>
+        <NavLink to="/" end>
+          首頁
+        </NavLink>
         <NavLink to="/search?q=演唱會">展演</NavLink>
         <NavLink to="/search?q=展覽">展覽</NavLink>
         <NavLink to="/search?q=棒球">運動</NavLink>
-        <NavLink to="/orders">訂單</NavLink>
+        <NavLink to="/orders">訂單查詢</NavLink>
       </nav>
     </header>
   )
@@ -45,14 +46,11 @@ export function Footer() {
         <Link to="/">熱門活動</Link>
         <Link to="/news">消息公告</Link>
         <Link to="/orders">訂單查詢</Link>
-        <Link to="/host">主辦控制台</Link>
+        <Link to="/admin" className="footer-admin">
+          後台
+        </Link>
       </div>
-      <p>票務客服專線：0800-000-000（假的）｜pbon 派對售票系統</p>
-      <p>
-        {isSupabaseMode ? '雲端模式 · Vercel + Supabase' : '本機模式 · 自家 Wi‑Fi'}
-        {' · '}
-        仿 ibon 介面的假搶票遊戲
-      </p>
+      <p>票務客服專線：0800-016-138（展示用）｜pbon 售票系統</p>
     </footer>
   )
 }

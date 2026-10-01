@@ -449,6 +449,37 @@
   display: none;
 }
 
+.admin-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-event-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-event-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--pbon-line);
+}
+
+.footer-admin {
+  opacity: 0.55;
+  font-size: 12px;
+}
+
 .catalog {
   display: grid;
   gap: 14px;

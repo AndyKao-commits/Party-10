@@ -1,44 +1,30 @@
-# pbon 派對售票系統
+# pbon 售票系統
 
-仿 [ibon 售票系統](https://ticket.ibon.com.tw/) 的假搶票網站：首頁有很多假活動，**只有派對主打場能真的買票**。
+一打開就是仿 ibon 的售票站首頁。訪客逛活動、搶票；你從後台登入建立活動並設定開賣時間。
 
-## 兩種玩法
+## 訪客
 
-### A. 自家 Wi‑Fi（不用帳號，推薦現場比手速）
+開網站首頁 → 熱門活動／搜尋 → 點可購票活動 → 線上購票。
+
+## 後台
+
+網址：`/admin`  
+預設密碼：`party2026`（可用環境變數 `VITE_ADMIN_PASSWORD` 改）
+
+可建立活動、設定開賣時間、設為主打、立刻開賣。
+
+## Vercel + Supabase
+
+1. Supabase SQL Editor 執行 `supabase/schema.sql`
+2. Vercel 環境變數：
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_ADMIN_PASSWORD`（建議自訂）
+3. Deploy（Production 分支請用含最新程式的 `main`）
+
+## 本機 Wi‑Fi
 
 ```bash
 npm install
 npm run party
 ```
-
-終端機會印 `http://192.168.x.x:3001` → 電腦開這個網址 → 主辦接管主打場 → 分享 QR。  
-資料在記憶體，關程式就結束。
-
-### B. Vercel + Supabase（有固定網址，不靠你家 Wi‑Fi）
-
-1. **Supabase**（免費）
-   - 開專案：https://supabase.com
-   - SQL Editor 貼上並執行 `supabase/schema.sql`
-   - Settings → API 複製 `Project URL`、`anon public` key
-
-2. **本機先測**
-   ```bash
-   cp .env.example .env
-   # 填入 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
-   npm run dev
-   ```
-
-3. **Vercel**（免費）
-   - 匯入這個 GitHub repo
-   - Environment Variables 加上同上兩個 `VITE_…`
-   - Framework：Vite，Build `npm run build`，Output `dist`
-   - 已附 `vercel.json`（SPA 路由）
-
-有設 Supabase 環境變數時，網站會走雲端即時資料；沒設就走本機 Express。
-
-## 怎麼玩
-
-1. 大家開同一網址（區網或 Vercel）
-2. 主辦 → 接管首頁主打場
-3. 朋友點「PARTY HOUSE」購票；其他活動是假的會被擋
-4. 「搶票戰況」即時看誰搶到（當下知道即可，不存檔也沒關係）

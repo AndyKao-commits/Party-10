@@ -143,6 +143,29 @@ export const supabaseApi = {
     return { playerId: data.id as string, room: await loadRoom(c) }
   },
 
+  async listEvents() {
+    const sb = getSupabase()!
+    await sb.rpc('ensure_featured_room')
+    const { data, error } = await sb
+      .from('rooms')
+      .select('code,title,subtitle,venue,date_text,sale_at,sale_open,is_featured')
+      .order('is_featured', { ascending: false })
+      .order('sale_at', { ascending: true })
+    if (error) throw new Error(error.message)
+    return {
+      events: (data || []).map((r) => ({
+        code: r.code as string,
+        title: r.title as string,
+        subtitle: (r.subtitle as string) || '',
+        venue: (r.venue as string) || '',
+        dateText: (r.date_text as string) || '',
+        saleAt: new Date(r.sale_at as string).getTime(),
+        saleOpen: Boolean(r.sale_open),
+        featured: Boolean(r.is_featured),
+      })),
+    }
+  },
+
   async createRoom(body: Record<string, unknown>) {
     const sb = getSupabase()!
     const hostId = crypto.randomUUID()
@@ -151,7 +174,14 @@ export const supabaseApi = {
     let code = ''
     for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)]
     const saleInSec = Math.max(5, Number(body.saleInSec ?? 30))
-    const saleAt = new Date(Date.now() + saleInSec * 1000).toISOString()
+    const saleAt = body.saleAt
+      ? new Date(String(body.saleAt)).toISOString()
+      : new Date(Date.now() + saleInSec * 1000).toISOString()
+    const featured = Boolean(body.featured)
+
+    if (featured) {
+      await sb.from('rooms').update({ is_featured: false }).eq('is_featured', true)
+    }
 
     const { error } = await sb.from('rooms').insert({
       code,
@@ -170,7 +200,7 @@ export const supabaseApi = {
         '為避免開賣時「登入逾時」，請於開賣前重新整理頁面確認連線狀態。',
         '每筆訂單限購張數以主辦設定為準。流量控管中請耐心等候。',
       ],
-      is_featured: false,
+      is_featured: featured,
     })
     if (error) throw new Error(error.message)
 
