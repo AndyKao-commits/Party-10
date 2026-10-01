@@ -13,6 +13,7 @@ import {
 } from './pages/Catalog'
 import './styles/global.css'
 import './styles/pages.css'
+import './styles/ticket.css'
 
 export default function App() {
   return (

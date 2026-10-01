@@ -1,5 +1,5 @@
 import type { FakeEvent } from '../data/catalog'
-import type { Order, Room, TicketArea } from '../types'
+import type { Order, Room, TicketArea, Seat } from '../types'
 import { getSupabase } from './supabase'
 
 function mapDecoyRow(e: Record<string, unknown>): FakeEvent {
@@ -46,6 +46,7 @@ type AreaRow = {
 }
 
 type OrderRow = {
+  unit_price?: number
   id: string
   nickname: string
   area_name: string
@@ -70,6 +71,7 @@ function mapAreas(rows: AreaRow[]): TicketArea[] {
 function mapOrders(rows: OrderRow[]): Order[] {
   return rows.map((o) => ({
     id: o.id,
+    unitPrice: o.unit_price,
     nickname: o.nickname,
     areaName: o.area_name,
     qty: o.qty,
@@ -91,6 +93,8 @@ async function loadRoom(code: string): Promise<Room> {
     sb.from('players').select('*', { count: 'exact', head: true }).eq('room_code', c),
   ])
 
+  const { data: seats, error: seatError } = await sb.rpc('list_ticket_seats', { p_code: c })
+  if (seatError) throw new Error('座位資料載入失敗：' + seatError.message)
   const r = room as RoomRow
   const saleAt = new Date(r.sale_at).getTime()
   return {
@@ -105,6 +109,7 @@ async function loadRoom(code: string): Promise<Room> {
     queueDelayMs: r.queue_delay_ms,
     failChance: r.fail_chance,
     imageUrl: r.image_url || '',
+    seats: (seats || []) as Seat[],
     areas: mapAreas((areas || []) as AreaRow[]),
     playerCount: playerCount || 0,
     orderCount: (orders || []).length,
@@ -116,7 +121,9 @@ async function loadRoom(code: string): Promise<Room> {
 function rpcError(err: { message?: string; code?: string }) {
   const msg = err.message || '請求失敗'
   const e = new Error(msg) as Error & { code?: string }
-  if (msg.includes('尚未開賣')) e.code = 'NOT_OPEN'
+  if (msg.includes('你是黃牛')) e.code = 'FAKE_SEAT'
+  else if (msg.includes('已被購買')) e.code = 'SEAT_TAKEN'
+  else if (msg.includes('尚未開賣')) e.code = 'NOT_OPEN'
   else if (msg.includes('忙碌') || msg.includes('過多')) e.code = 'BUSY'
   else if (msg.includes('售完') || msg.includes('不足')) e.code = 'SOLD_OUT'
   return e
@@ -125,12 +132,11 @@ function rpcError(err: { message?: string; code?: string }) {
 export const supabaseApi = {
   async getFeatured() {
     const sb = getSupabase()!
-    const { error } = await sb.rpc('ensure_featured_room')
-    if (error) throw new Error(error.message)
     const { data: featured, error: fErr } = await sb
       .from('rooms')
       .select('code')
-      .eq('is_featured', true)
+      .order('is_featured', {ascending:false})
+      .order('created_at', {ascending:true})
       .limit(1)
       .maybeSingle()
     if (fErr || !featured) throw new Error(fErr?.message || '找不到主打場')
@@ -166,7 +172,6 @@ export const supabaseApi = {
 
   async listEvents() {
     const sb = getSupabase()!
-    await sb.rpc('ensure_featured_room')
     const { data, error } = await sb
       .from('rooms')
       .select('code,host_id,title,subtitle,venue,date_text,sale_at,sale_open,is_featured,max_per_order,fail_chance,image_url')
@@ -175,7 +180,7 @@ export const supabaseApi = {
     if (error) throw new Error(error.message)
     const events = await Promise.all(
       (data || []).map(async (r) => {
-        const { data: areas } = await sb.from('areas').select('total,remaining').eq('room_code', r.code)
+        const { data: areas } = await sb.from('areas').select('*').eq('room_code', r.code)
         const totalTickets = (areas || []).reduce((s, a) => s + Number(a.total || 0), 0)
         const remaining = (areas || []).reduce((s, a) => s + Number(a.remaining || 0), 0)
         return {
@@ -191,6 +196,7 @@ export const supabaseApi = {
           maxPerOrder: Number(r.max_per_order || 2),
           failChance: Number(r.fail_chance || 0),
           imageUrl: (r.image_url as string) || '',
+          areas: (areas || []).map(a => ({...a,realSeats:Number(a.real_seats ?? a.total),fakeSeats:Number(a.fake_seats ?? 0)})),
           totalTickets,
           remaining,
         }
@@ -201,27 +207,15 @@ export const supabaseApi = {
 
   async updateRoom(body: Record<string, unknown>) {
     const sb = getSupabase()!
-    const { data, error } = await sb.rpc('update_room_event', {
-      p_code: String(body.code || ''),
-      p_host_id: body.hostId || null,
-      p_title: body.title ?? null,
-      p_subtitle: body.subtitle ?? null,
-      p_venue: body.venue ?? null,
-      p_date_text: body.dateText ?? null,
-      p_sale_at: body.saleAt ? new Date(String(body.saleAt)).toISOString() : null,
-      p_max_per_order: body.maxPerOrder ?? null,
-      p_fail_chance: body.failChance ?? null,
-      p_featured: body.featured ?? null,
-      p_total_tickets: body.totalTickets ?? null,
-      p_image_url: body.imageUrl ?? null,
-    })
+    const { data, error } = await sb.rpc('save_ticket_event', { p_code: String(body.code || ''), p_host_id: body.hostId, p_event: body, p_areas: body.areas })
     if (error) throw new Error(error.message)
-    // Fallback if RPC not yet migrated with image_url
-    if (body.imageUrl != null) {
-      await sb.from('rooms').update({ image_url: String(body.imageUrl) }).eq('code', String(body.code || '').toUpperCase())
-    }
-    const code = (data as { code?: string })?.code || String(body.code)
-    return { room: await loadRoom(code) }
+    return { room: await loadRoom(String(data)) }
+  },
+
+  async deleteRoom(code: string, hostId: string) {
+    const { error } = await getSupabase()!.rpc('delete_ticket_event', { p_code: code, p_host_id: hostId })
+    if (error) throw new Error(error.message)
+    return { ok: true }
   },
 
   async adminOpenSale(code: string) {
@@ -238,73 +232,12 @@ export const supabaseApi = {
   },
 
   async createRoom(body: Record<string, unknown>) {
-    const sb = getSupabase()!
     const hostId = crypto.randomUUID()
-    const hostName = String(body.hostName || '主辦人').slice(0, 20)
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-    let code = ''
-    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)]
-    const saleInSec = Math.max(5, Number(body.saleInSec ?? 30))
-    const saleAt = body.saleAt
-      ? new Date(String(body.saleAt)).toISOString()
-      : new Date(Date.now() + saleInSec * 1000).toISOString()
-    const featured = Boolean(body.featured)
-
-    if (featured) {
-      await sb.from('rooms').update({ is_featured: false }).eq('is_featured', true)
-    }
-
-    const { error } = await sb.from('rooms').insert({
-      code,
-      host_id: hostId,
-      title: String(body.title || 'YAWASABI 「SUPER PLANET」 in TAIPEI').slice(0, 80),
-      subtitle: String(body.subtitle || '10-city Dome & Stadium Tour 2026-2027').slice(0, 80),
-      venue: String(body.venue || 'TAIPEI DOME 台北大巨蛋').slice(0, 80),
-      date_text: String(body.dateText || '2026/10/10（六）～10/11（日）').slice(0, 80),
-      sale_at: saleAt,
-      sale_open: false,
-      max_per_order: Math.min(4, Math.max(1, Number(body.maxPerOrder || 2))),
-      queue_delay_ms: Math.min(8000, Math.max(800, Number(body.queueDelayMs || 2500))),
-      fail_chance: Math.min(0.6, Math.max(0, Number(body.failChance ?? 0.15))),
-      notices: [
-        '本系統為派對娛樂用假搶票，一切票券皆為假的，沒有真實效力。',
-        '為避免開賣時「登入逾時」，請於開賣前重新整理頁面確認連線狀態。',
-        '每筆訂單限購張數以主辦設定為準。流量控管中請耐心等候。',
-      ],
-      is_featured: featured,
-      image_url: String(body.imageUrl || ''),
-    })
+    const code = crypto.randomUUID().replaceAll('-', '').slice(0, 6).toUpperCase()
+    const defaults = [{id:'general',name:'全票區',price:Number(body.price ?? 700),realSeats:Number(body.totalTickets ?? 18),fakeSeats:0,color:'#16a34a'}]
+    const event = {...body,saleAt:body.saleAt || new Date(Date.now() + Number(body.saleInSec ?? 30)*1000).toISOString()}
+    const { error } = await getSupabase()!.rpc('save_ticket_event', { p_code: code, p_host_id: hostId, p_event: event, p_areas: body.areas || defaults })
     if (error) throw new Error(error.message)
-
-    const totalTickets = Math.max(0, Number(body.totalTickets || 0))
-    const ticketPrice = Math.max(1, Number(body.price || 2800))
-    const defaults =
-      totalTickets > 0
-        ? [
-            {
-              id: 'general',
-              name: '全票區',
-              price: ticketPrice,
-              total: totalTickets,
-              remaining: totalTickets,
-              color: '#16a34a',
-            },
-          ]
-        : [
-            { id: 'vip', name: 'VIP 搖滾區', price: 5800, total: 4, remaining: 4, color: '#e11d48' },
-            { id: 'a', name: '特 A 區', price: 4800, total: 8, remaining: 8, color: '#ea580c' },
-            { id: 'b', name: '特 B 區', price: 3800, total: 12, remaining: 12, color: '#ca8a04' },
-            { id: 'c', name: '二樓座席', price: 2800, total: 16, remaining: 16, color: '#16a34a' },
-          ]
-    const { error: aErr } = await sb.from('areas').insert(defaults.map((a) => ({ ...a, room_code: code })))
-    if (aErr) throw new Error(aErr.message)
-    const { error: pErr } = await sb.from('players').insert({
-      id: hostId,
-      room_code: code,
-      nickname: hostName,
-      is_host: true,
-    })
-    if (pErr) throw new Error(pErr.message)
     return { hostId, room: await loadRoom(code) }
   },
 
@@ -331,15 +264,16 @@ export const supabaseApi = {
 
   async purchase(
     code: string,
-    body: { playerId: string; areaId: string; qty: number; nickname: string },
+    body: { playerId: string; areaId: string; qty: number; nickname: string; seatIds?: string[] },
   ) {
     const sb = getSupabase()!
-    const { data, error } = await sb.rpc('purchase_tickets', {
+    const { data, error } = await sb.rpc('purchase_selected_seats', {
       p_code: code,
       p_player_id: body.playerId || null,
       p_area_id: body.areaId,
       p_qty: body.qty,
       p_nickname: body.nickname,
+      p_seat_ids: body.seatIds || [],
     })
     if (error) throw rpcError(error)
     const order = (data as { order: Order }).order

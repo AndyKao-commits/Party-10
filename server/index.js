@@ -4,6 +4,7 @@ import { createServer } from 'http'
 import { networkInterfaces } from 'os'
 import { WebSocketServer } from 'ws'
 import { randomUUID } from 'crypto'
+import { configureAreas, selectForPurchase } from './seats.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -65,8 +66,8 @@ function createRoomObject(body = {}, { code, hostId, hostName } = {}) {
           id: String(a.id || `area-${i}`),
           name: String(a.name || `票區 ${i + 1}`),
           price: Number(a.price || 1000),
-          total: Number(a.total || 10),
-          remaining: Number(a.total || 10),
+          total: Math.min(999,Math.max(1,Number(a.total || 10))),
+          remaining: Math.min(999,Math.max(1,Number(a.total || 10))),
           color: String(a.color || '#16a34a'),
         }))
       : defaultAreas(),
@@ -80,6 +81,7 @@ function createRoomObject(body = {}, { code, hostId, hostName } = {}) {
     ],
     createdAt: Date.now(),
   }
+  configureAreas(room, room.areas.map(a => ({...a,realSeats:a.total,fakeSeats:0})))
   return room
 }
 
@@ -103,28 +105,7 @@ function yawasabiDefaults() {
 }
 
 function ensureFeaturedRoom() {
-  featuredCode = String(process.env.FEATURED_CODE || 'PARTY0').toUpperCase()
-  if (!rooms.has(featuredCode)) {
-    const room = createRoomObject(yawasabiDefaults(), { code: featuredCode, hostName: '系統' })
-    room.saleOpen = false
-    rooms.set(featuredCode, room)
-  } else {
-    const room = rooms.get(featuredCode)
-    // One-time upgrade if still the old living-room party defaults
-    if (room && /PARTY HOUSE|客廳/.test(room.title || '') && !room.imageUrl) {
-      const d = yawasabiDefaults()
-      Object.assign(room, {
-        title: d.title,
-        subtitle: d.subtitle,
-        venue: d.venue,
-        dateText: d.dateText,
-        imageUrl: d.imageUrl,
-        saleAt: new Date(d.saleAt).getTime(),
-        areas: d.areas.map((a) => ({ ...a, remaining: a.total })),
-      })
-    }
-  }
-  return rooms.get(featuredCode)
+  return rooms.get(featuredCode) || rooms.values().next().value
 }
 
 function codeGen() {
@@ -156,6 +137,7 @@ function publicRoom(room) {
     queueDelayMs: room.queueDelayMs,
     failChance: room.failChance,
     imageUrl: room.imageUrl || '',
+    seats: room.seats.map(s => ({id:s.id,areaId:s.areaId,position:s.position,label:s.label,sold:s.sold})),
     areas: room.areas.map((a) => ({
       id: a.id,
       name: a.name,
@@ -170,6 +152,7 @@ function publicRoom(room) {
     notices: room.notices,
     orders: room.orders.map((o) => ({
       id: o.id,
+      unitPrice: o.unitPrice,
       nickname: o.nickname,
       areaName: o.areaName,
       qty: o.qty,
@@ -198,9 +181,11 @@ function pushRoom(code) {
 
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({limit:'2mb'}))
 
-ensureFeaturedRoom()
+rooms.set(featuredCode,createRoomObject(yawasabiDefaults(),{code:featuredCode,hostName:'系統'}))
+rooms.set('BBQ1011',createRoomObject({title:'下班烤肉派對',subtitle:'好朋友限定・屋頂炭火之夜',venue:'屋頂派對主場',dateText:'2026/10/11（日）16:00',saleAt:'2026-10-10T10:00:00+08:00',imageUrl:'/events/bbq-party.jpg',failChance:0,maxPerOrder:1},{code:'BBQ1011',hostName:'主辦'}))
+configureAreas(rooms.get('BBQ1011'),[{id:'general',name:'烤肉席',price:700,realSeats:18,fakeSeats:18,color:'#16a34a'}])
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, rooms: rooms.size, featuredCode })
@@ -208,6 +193,7 @@ app.get('/api/health', (_req, res) => {
 
 app.get('/api/featured', (_req, res) => {
   const room = ensureFeaturedRoom()
+  if (!room) return res.status(404).json({error:'目前沒有活動'})
   room.saleOpen = room.saleOpen || Date.now() >= room.saleAt
   res.json({ room: publicRoom(room), hostHint: 'POST /api/featured/claim-host' })
 })
@@ -228,6 +214,7 @@ app.get('/api/events', (_req, res) => {
       maxPerOrder: r.maxPerOrder,
       failChance: r.failChance,
       imageUrl: r.imageUrl || '',
+      areas: r.areas,
       totalTickets: r.areas.reduce((s, a) => s + a.total, 0),
       remaining: r.areas.reduce((s, a) => s + a.remaining, 0),
     }))
@@ -237,6 +224,7 @@ app.get('/api/events', (_req, res) => {
 
 app.post('/api/featured/claim-host', (req, res) => {
   const room = ensureFeaturedRoom()
+  if (!room) return res.status(404).json({error:'目前沒有活動'})
   const nickname = String(req.body?.nickname || '主辦人').slice(0, 20)
   const hostId = randomUUID()
   room.hostId = hostId
@@ -253,20 +241,8 @@ app.post('/api/rooms', (req, res) => {
   const hostId = randomUUID()
   const hostName = String(body.hostName || '主辦人').slice(0, 20)
   const room = createRoomObject(body, { code, hostId, hostName })
-  const totalTickets = Math.max(0, Number(body.totalTickets || 0))
-  if (totalTickets > 0) {
-    const price = Math.max(1, Number(body.price || 2800))
-    room.areas = [
-      {
-        id: 'general',
-        name: '全票區',
-        price,
-        total: totalTickets,
-        remaining: totalTickets,
-        color: '#16a34a',
-      },
-    ]
-  }
+  try { configureAreas(room,body.areas || (body.totalTickets ? [{id:'general',name:'全票區',price:Number(body.price ?? 700),realSeats:Number(body.totalTickets),fakeSeats:Number(body.fakeSeats ?? 0),color:'#16a34a'}] : room.areas.map(a => ({...a,realSeats:a.total,fakeSeats:0})))) }
+  catch (err) {return res.status(400).json({error:err.message})}
   if (body.featured) {
     featuredCode = code
   }
@@ -279,6 +255,9 @@ app.patch('/api/rooms/:code', (req, res) => {
   const room = rooms.get(code)
   if (!room) return res.status(404).json({ error: '找不到房間' })
   const body = req.body || {}
+  if (body.hostId !== room.hostId) return res.status(403).json({error:'只有主辦可以編輯'})
+  try { if (body.areas) configureAreas(room,body.areas) }
+  catch (err) {return res.status(400).json({error:err.message})}
   if (body.title) room.title = String(body.title).slice(0, 80)
   if (body.subtitle != null) room.subtitle = String(body.subtitle).slice(0, 80)
   if (body.venue != null) room.venue = String(body.venue).slice(0, 80)
@@ -294,21 +273,20 @@ app.patch('/api/rooms/:code', (req, res) => {
   if (body.failChance != null) room.failChance = Math.min(0.6, Math.max(0, Number(body.failChance)))
   if (body.imageUrl != null) room.imageUrl = String(body.imageUrl)
   if (body.featured) featuredCode = code
-  const totalTickets = Number(body.totalTickets || 0)
-  if (totalTickets > 0) {
-    room.areas = [
-      {
-        id: 'general',
-        name: '全票區',
-        price: room.areas[0]?.price || 2800,
-        total: totalTickets,
-        remaining: totalTickets,
-        color: '#16a34a',
-      },
-    ]
-  }
+  if (body.featured === false && featuredCode === code) featuredCode = ''
   pushRoom(code)
   res.json({ room: publicRoom(room) })
+})
+
+app.delete('/api/rooms/:code', (req,res) => {
+  const code=String(req.params.code).toUpperCase(); const room=rooms.get(code)
+  if (!room) return res.status(404).json({error:'找不到活動'})
+  if (req.body?.hostId !== room.hostId) return res.status(403).json({error:'只有主辦可以刪除'})
+  rooms.delete(code)
+  for (const ws of roomSockets.get(code) || []) ws.close()
+  roomSockets.delete(code)
+  if (featuredCode === code) featuredCode=''
+  res.json({ok:true})
 })
 
 app.post('/api/rooms/:code/admin-open', (req, res) => {
@@ -357,6 +335,7 @@ app.post('/api/rooms/:code/reset-stock', (req, res) => {
   if (!room) return res.status(404).json({ error: '找不到房間' })
   if (req.body?.hostId !== room.hostId) return res.status(403).json({ error: '只有主辦可以重置' })
   for (const a of room.areas) a.remaining = a.total
+  for (const seat of room.seats) seat.sold=false
   room.orders = []
   room.saleOpen = false
   room.saleAt = Date.now() + Math.max(5, Number(req.body?.saleInSec || 20)) * 1000
@@ -372,12 +351,16 @@ app.post('/api/rooms/:code/purchase', async (req, res) => {
   room.saleOpen = room.saleOpen || Date.now() >= room.saleAt
   if (!room.saleOpen) return res.status(400).json({ error: '尚未開賣', code: 'NOT_OPEN' })
 
-  const { playerId, areaId, qty, nickname } = req.body || {}
+  const { playerId, areaId, qty, nickname, seatIds } = req.body || {}
   const area = room.areas.find((a) => a.id === areaId)
   if (!area) return res.status(400).json({ error: '票區不存在' })
 
-  const n = Math.min(room.maxPerOrder, Math.max(1, Number(qty || 1)))
+  const n = Number(qty)
   const player = room.players.find((p) => p.id === playerId)
+  if (!player) return res.status(400).json({error:'請先加入活動'})
+  let selectedSeats
+  try { selectedSeats=selectForPurchase(room,areaId,seatIds,n) }
+  catch (err) {return res.status(409).json({error:err.message,code:err.code})}
   const name = String(nickname || player?.nickname || '訪客').slice(0, 20)
 
   // Fake queue processing delay is handled client-side; server still may "fail"
@@ -398,9 +381,8 @@ app.post('/api/rooms/:code/purchase', async (req, res) => {
   }
 
   area.remaining -= n
-  const row = String.fromCharCode(65 + Math.floor(Math.random() * 8))
-  const start = 1 + Math.floor(Math.random() * 20)
-  const seats = Array.from({ length: n }, (_, i) => `${row}排${start + i}號`)
+  selectedSeats.forEach(s => {s.sold=true})
+  const seats = selectedSeats.sort((a,b) => a.position-b.position).map(s => s.label)
   const orderCode = `P${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 90 + 10)}`
 
   /** @type {Order} */
@@ -411,6 +393,7 @@ app.post('/api/rooms/:code/purchase', async (req, res) => {
     areaId: area.id,
     areaName: area.name,
     qty: n,
+    unitPrice: area.price,
     seats,
     code: orderCode,
     createdAt: Date.now(),
@@ -461,7 +444,8 @@ setInterval(() => {
 }, 500)
 
 function lanUrls(port) {
-  const nets = networkInterfaces()
+  let nets
+  try {nets=networkInterfaces()} catch {return []}
   const urls = []
   for (const list of Object.values(nets)) {
     for (const net of list || []) {
