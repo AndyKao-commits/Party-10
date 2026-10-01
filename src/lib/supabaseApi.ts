@@ -294,24 +294,47 @@ export const supabaseApi = {
     const sb = getSupabase()!
     const c = code.toUpperCase()
     let alive = true
+    let refreshTimer: number | undefined
+    let refreshing = false
+    let refreshAgain = false
     const refresh = async () => {
+      if (refreshing) {
+        refreshAgain = true
+        return
+      }
+      refreshing = true
       try {
         if (!alive) return
         onRoom(await loadRoom(c))
       } catch {
         /* ignore transient */
+      } finally {
+        refreshing = false
+        if (alive && refreshAgain) {
+          refreshAgain = false
+          scheduleRefresh()
+        }
       }
+    }
+    // One purchase emits both area and order changes. During a rush, every
+    // connected phone receives many events at once, so collapse the burst
+    // into one snapshot request instead of refetching for every row change.
+    const scheduleRefresh = () => {
+      if (!alive) return
+      window.clearTimeout(refreshTimer)
+      refreshTimer = window.setTimeout(() => void refresh(), 350)
     }
     const channel = sb
       .channel(`room-${c}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: `code=eq.${c}` }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'areas', filter: `room_code=eq.${c}` }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `room_code=eq.${c}` }, refresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `room_code=eq.${c}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: `code=eq.${c}` }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'areas', filter: `room_code=eq.${c}` }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `room_code=eq.${c}` }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `room_code=eq.${c}` }, scheduleRefresh)
       .subscribe()
     void refresh()
     return () => {
       alive = false
+      window.clearTimeout(refreshTimer)
       void sb.removeChannel(channel)
     }
   },
