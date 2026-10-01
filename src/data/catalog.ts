@@ -17,7 +17,7 @@ export type FakeEvent = {
 
 export const CATEGORIES = [
   { id: 'all', label: '全部' },
-  { id: 'concert', label: '展演活動' },
+  { id: 'concert', label: '演唱會 / 音樂' },
   { id: 'exhibit', label: '展覽' },
   { id: 'sport', label: '運動賽事' },
   { id: 'theme', label: '主題樂園' },
@@ -162,10 +162,10 @@ export const FAKE_EVENTS: FakeEvent[] = [
 ]
 
 export const FAKE_NEWS = [
-  { id: 'n1', date: '2026/03/28', title: '【公告】系統維護通知（其實沒在維護）' },
-  { id: 'n2', date: '2026/03/20', title: '【活動】花東振興 OPENPOINT 點數回饋（假的）' },
-  { id: 'n3', date: '2026/03/12', title: '【提醒】開賣前請重新登入，避免登入逾時' },
-  { id: 'n4', date: '2026/03/01', title: '【教學】如何和朋友一起玩 pbon 假搶票' },
+  { id: 'n1', date: '2026/10/01', title: '【公告】雙十連假節目售票資訊' },
+  { id: 'n2', date: '2026/09/30', title: '【提醒】購票前請確認活動場次與票種' },
+  { id: 'n3', date: '2026/09/28', title: '【提醒】開賣前請確認連線，避免操作逾時' },
+  { id: 'n4', date: '2026/09/25', title: '【說明】派對模擬票券與測試付款使用須知' },
 ]
 
 export function getEventBySlug(slug: string) {

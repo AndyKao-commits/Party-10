@@ -59,10 +59,8 @@ export function ActivityPage() {
       )}
       <div className="page-card flash">
         <div className="hero-grid">
-          <div className="poster">
-            <div className="poster__eyebrow">WORLD TOUR · FAKE</div>
-            <h2 className="poster__title">{room.title}</h2>
-            <div className="poster__sub">{room.subtitle}</div>
+          <div className="detail-poster">
+            {room.imageUrl ? <img src={room.imageUrl} alt={room.title} /> : <div className="poster-fallback">{room.title}</div>}
           </div>
 
           <div>

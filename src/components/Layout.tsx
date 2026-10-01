@@ -3,9 +3,7 @@ import type { ReactNode } from 'react'
 
 export function DemoBanner() {
   return (
-    <div className="demo-banner">
-      本站為派對娛樂展示系統 · 票券無真實效力
-    </div>
+    <div className="demo-banner">本站為派對娛樂展示系統 · 票券無真實效力</div>
   )
 }
 
@@ -19,20 +17,23 @@ export function Header() {
         </Link>
         <nav className="header-links header-links--desktop">
           <NavLink to="/" end>
-            熱門活動
+            節目資訊
           </NavLink>
-          <NavLink to="/search">詳細搜尋</NavLink>
+          <NavLink to="/search">節目搜尋</NavLink>
           <NavLink to="/orders">訂單查詢</NavLink>
           <NavLink to="/news">公告</NavLink>
         </nav>
+        <Link to="/orders" className="header-order">
+          訂單查詢 →
+        </Link>
       </div>
       <nav className="header-subnav">
         <NavLink to="/" end>
           首頁
         </NavLink>
-        <NavLink to="/search?q=演唱會">展演</NavLink>
-        <NavLink to="/search?q=展覽">展覽</NavLink>
-        <NavLink to="/search?q=棒球">運動</NavLink>
+        <NavLink to="/search?category=concert">展演</NavLink>
+        <NavLink to="/search?category=exhibit">展覽</NavLink>
+        <NavLink to="/search?category=sport">運動</NavLink>
         <NavLink to="/orders">訂單查詢</NavLink>
       </nav>
     </header>
@@ -50,7 +51,7 @@ export function Footer() {
           後台
         </Link>
       </div>
-      <p>票務客服專線：0800-016-138（展示用）｜pbon 售票系統</p>
+      <p>pbon 售票系統｜派對娛樂模擬平台・票券無真實效力</p>
     </footer>
   )
 }
@@ -66,13 +67,23 @@ export function Shell({ children }: { children: ReactNode }) {
   )
 }
 
-const STEPS = ['選擇活動', '選擇票區', '座位/數量', '填寫資訊', '購票確認', '訂票完成']
+const STEPS = [
+  '選擇活動',
+  '選擇票區',
+  '座位/數量',
+  '填寫資訊',
+  '購票確認',
+  '訂票完成',
+]
 
 export function StepBar({ current }: { current: number }) {
   return (
     <div className="step-bar">
       {STEPS.map((label, i) => (
-        <div key={label} className={`step-bar__item ${i === current ? 'active' : ''}`}>
+        <div
+          key={label}
+          className={`step-bar__item ${i === current ? 'active' : ''}`}
+        >
           <span className="step-bar__num">{i + 1}</span>
           {label}
         </div>
