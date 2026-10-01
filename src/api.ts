@@ -1,4 +1,4 @@
-import type { Room, Order } from './types'
+import type { Room, Order, TicketArea } from './types'
 import type { FakeEvent } from './data/catalog'
 import type { FakeCard } from './lib/cards'
 import { isSupabaseMode } from './lib/supabase'
@@ -8,6 +8,7 @@ const API = import.meta.env.VITE_API_URL || ''
 
 export type LiveEvent = {
   code: string
+  areas?: (TicketArea & { realSeats: number; fakeSeats: number })[]
   hostId?: string
   title: string
   subtitle: string
@@ -108,7 +109,7 @@ export function resetStock(code: string, hostId: string, saleInSec = 20) {
 
 export function purchase(
   code: string,
-  body: { playerId: string; areaId: string; qty: number; nickname: string },
+  body: { playerId: string; areaId: string; qty: number; nickname: string; seatIds?: string[] },
 ) {
   if (isSupabaseMode) return supabaseApi.purchase(code, body)
   return req<{ order: Order; room: Room }>(`/api/rooms/${code}/purchase`, {
@@ -165,3 +166,8 @@ export function wsUrl(code: string) {
 }
 
 export { isSupabaseMode }
+
+export function deleteRoom(code: string, hostId: string) {
+  if (isSupabaseMode) return supabaseApi.deleteRoom(code, hostId)
+  return req<{ ok: boolean }>(`/api/rooms/${code}`, { method: 'DELETE', body: JSON.stringify({ hostId }) })
+}

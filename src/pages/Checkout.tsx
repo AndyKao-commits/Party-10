@@ -12,8 +12,10 @@ export function CheckoutPage() {
   const session = loadSession()
   const params = new URLSearchParams(location.search)
   const areaId = params.get('area') || ''
-  const qty = Number(params.get('qty') || 1)
+  const seatIds = (params.get('seats') || '').split(',').filter(Boolean)
+  const qty = seatIds.length
   const area = room?.areas.find((a) => a.id === areaId)
+  const [retry, setRetry] = useState(false)
   const [phone, setPhone] = useState('')
   const [agree, setAgree] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -25,7 +27,7 @@ export function CheckoutPage() {
 
   const total = useMemo(() => (area ? area.price * qty : 0), [area, qty])
 
-  if (!room || !area) {
+  if (!room || !area || qty < 1 || qty > room.maxPerOrder) {
     return (
       <Shell>
         <div className="page-card notice-box">
@@ -59,8 +61,9 @@ export function CheckoutPage() {
       }
       await new Promise((r) => setTimeout(r, 900 + Math.random() * 800))
       const res = await purchase(code, {
-        playerId: session?.playerId || '',
+        playerId: session?.code === code ? session.playerId : '',
         areaId,
+        seatIds,
         qty,
         nickname: session?.nickname || '訪客',
       })
@@ -69,6 +72,7 @@ export function CheckoutPage() {
     } catch (err) {
       const e = err as Error & { code?: string }
       setError(e.message)
+      if (e.code === 'FAKE_SEAT' || e.code === 'SEAT_TAKEN') { sessionStorage.removeItem(`pbon-order-${code}`); setRetry(true) }
     } finally {
       setBusy(false)
     }
@@ -76,6 +80,7 @@ export function CheckoutPage() {
 
   return (
     <Shell>
+      {retry && <div className="seat-dialog-backdrop"><div className="seat-dialog" role="alertdialog" aria-modal="true" aria-labelledby="seat-retry-title"><h2 id="seat-retry-title">{error}</h2><button autoFocus className="btn btn-orange btn-block" onClick={() => nav(`/r/${code}/qty?area=${encodeURIComponent(areaId)}`, {replace:true})}>重新購票</button></div></div>}
       <div className="page-card flash">
         <StepBar current={3} />
         <div style={{ padding: 16 }}>
@@ -84,6 +89,7 @@ export function CheckoutPage() {
             <div>
               <strong>{area.name}</strong> × {qty}
             </div>
+            <div>座位：{room.seats.filter(s => seatIds.includes(s.id)).map(s => s.label).join('、')}</div>
             <div>小計 NT$ {total.toLocaleString()}</div>
           </div>
 
@@ -198,7 +204,7 @@ export function SuccessPage() {
         <StepBar current={5} />
         <div className="ticket-success">
           <div className="status-pill">訂票完成</div>
-          <h2 style={{ marginBottom: 4 }}>恭喜搶到假票！</h2>
+          <h2 style={{ marginBottom: 4 }}>購票成功！</h2>
           <p className="muted">請截圖保存，這是你今晚的戰利品。</p>
           <div className="ticket-stub">
             <div className="muted" style={{ fontSize: 12 }}>pbon 派對售票系統</div>
@@ -206,6 +212,7 @@ export function SuccessPage() {
             <div>購票人：{order.nickname}</div>
             <div>座位：{order.seats.join('、')}</div>
             <div>張數：{order.qty}</div>
+            {order.unitPrice != null && <div>成交金額：NT$ {(order.unitPrice * order.qty).toLocaleString()}</div>}
             <div style={{ marginTop: 12, fontFamily: 'var(--font-display)', fontSize: 22, letterSpacing: '0.08em' }}>
               {order.code}
             </div>

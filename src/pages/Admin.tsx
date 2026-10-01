@@ -5,6 +5,7 @@ import {
   createCards,
   clearCards,
   createRoom,
+  deleteRoom,
   listCards,
   listDecoys,
   listEvents,
@@ -48,17 +49,16 @@ function toLocalInputValue(d: Date) {
 const emptyEventForm = () => ({
   code: '',
   hostId: '',
-  title: 'YAWASABI 「SUPER PLANET」 in TAIPEI',
-  subtitle: '10-city Dome & Stadium Tour 2026-2027',
-  venue: 'TAIPEI DOME 台北大巨蛋',
-  dateText: '2026/10/10（六）～10/11（日）',
+  title: '下班烤肉派對',
+  subtitle: '好朋友限定・屋頂炭火之夜',
+  venue: '屋頂派對主場',
+  dateText: '2026/10/11（日）16:00',
   saleAt: toLocalInputValue(new Date('2026-10-10T10:00:00')),
   maxPerOrder: 2,
   failChance: 15,
   featured: true,
-  totalTickets: 50,
-  price: 3800,
-  imageUrl: '/events/yawasabi-super-planet.jpg',
+  areas: [{ id: 'general', name: '烤肉席', price: 700, realSeats: 18, fakeSeats: 18, color: '#16a34a' }],
+  imageUrl: '/events/bbq-party.jpg',
 })
 
 export function AdminPage() {
@@ -123,7 +123,7 @@ export function AdminPage() {
           maxPerOrder: form.maxPerOrder,
           failChance: form.failChance / 100,
           featured: form.featured,
-          totalTickets: form.totalTickets,
+          areas: form.areas,
           imageUrl: form.imageUrl,
         })
         setMsg(`已更新 ${form.code}`)
@@ -139,8 +139,7 @@ export function AdminPage() {
           failChance: form.failChance / 100,
           queueDelayMs: 2200,
           featured: form.featured,
-          totalTickets: form.totalTickets,
-          price: form.price,
+          areas: form.areas,
           imageUrl: form.imageUrl,
         })
         saveSession({
@@ -173,10 +172,9 @@ export function AdminPage() {
       dateText: ev.dateText,
       saleAt: toLocalInputValue(new Date(ev.saleAt)),
       maxPerOrder: ev.maxPerOrder || 2,
-      failChance: Math.round((ev.failChance || 0.15) * 100),
+      failChance: Math.round((ev.failChance ?? 0.15) * 100),
       featured: ev.featured,
-      totalTickets: ev.totalTickets || 20,
-      price: 2800,
+      areas: (ev.areas || []).map(a => ({ id: a.id, name: a.name, price: a.price, realSeats: a.realSeats, fakeSeats: a.fakeSeats, color: a.color })),
       imageUrl: ev.imageUrl || '',
     })
     setTab('events')
@@ -303,49 +301,26 @@ export function AdminPage() {
                   required
                 />
               </div>
+              <h3>票區與座位</h3>
+              <p className="muted">真假座位隨機混排。調整數量會重新排列未售座位，已售座位與訂單保留；真座位數不得少於已售張數。</p>
+              {form.areas.map((area, index) => (
+                <fieldset className="admin-seat-area" key={area.id}>
+                  <legend>票區 {index + 1}</legend>
+                  <div className="field"><label>票區名稱</label><input value={area.name} required onChange={e => setForm(f => ({ ...f, areas: f.areas.map((a,i) => i === index ? {...a,name:e.target.value} : a) }))}/></div>
+                  <div className="field-row">
+                    {(['price','realSeats','fakeSeats'] as const).map(key => <div className="field" key={key}>
+                      <label>{key === 'price' ? '票價 NT$' : key === 'realSeats' ? '真座位數' : '假座位數'}</label>
+                      <input type="number" min={0} max={key === 'price' ? 999999 : 999} required value={area[key]} onChange={e => setForm(f => ({...f,areas:f.areas.map((a,i) => i === index ? {...a,[key]:Number(e.target.value)} : a)}))}/>
+                    </div>)}
+                  </div>
+                  <div className="field"><label>票區顏色</label><input type="color" value={area.color} onChange={e => setForm(f => ({...f,areas:f.areas.map((a,i) => i === index ? {...a,color:e.target.value} : a)}))}/></div>
+                  {form.areas.length > 1 && <button type="button" className="btn btn-ghost" onClick={() => setForm(f => ({...f,areas:f.areas.filter((_,i) => i !== index)}))}>移除票區</button>}
+                </fieldset>
+              ))}
+              <button type="button" className="btn btn-ghost" onClick={() => setForm(f => ({...f,areas:[...f.areas,{id:crypto.randomUUID(),name:'新票區',price:700,realSeats:10,fakeSeats:10,color:'#16a34a'}]}))}>新增票區</button>
               <div className="field-row">
-                <div className="field">
-                  <label>總限量張數</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={999}
-                    value={form.totalTickets}
-                    onChange={(e) => setForm((f) => ({ ...f, totalTickets: Number(e.target.value) }))}
-                  />
-                </div>
-                <div className="field">
-                  <label>每筆限購</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={4}
-                    value={form.maxPerOrder}
-                    onChange={(e) => setForm((f) => ({ ...f, maxPerOrder: Number(e.target.value) }))}
-                  />
-                </div>
-              </div>
-              <div className="field-row">
-                <div className="field">
-                  <label>票價</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={form.price}
-                    onChange={(e) => setForm((f) => ({ ...f, price: Number(e.target.value) }))}
-                    disabled={editing}
-                  />
-                </div>
-                <div className="field">
-                  <label>假忙線%</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={60}
-                    value={form.failChance}
-                    onChange={(e) => setForm((f) => ({ ...f, failChance: Number(e.target.value) }))}
-                  />
-                </div>
+                <div className="field"><label>每筆限購</label><input type="number" min={1} max={4} required value={form.maxPerOrder} onChange={e => setForm(f => ({...f,maxPerOrder:Number(e.target.value)}))}/></div>
+                <div className="field"><label>假忙線 %</label><input type="number" min={0} max={60} required value={form.failChance} onChange={e => setForm(f => ({...f,failChance:Number(e.target.value)}))}/></div>
               </div>
               <div className="field">
                 <label>海報圖片網址</label>
@@ -430,6 +405,13 @@ export function AdminPage() {
                       >
                         開賣
                       </button>
+                      <button type="button" className="btn btn-ghost" disabled={busy} onClick={async () => {
+                        if (!window.confirm(`確定永久刪除「${ev.title}」？座位、訂單及活動資料都會刪除。`)) return
+                        setBusy(true); setError(null)
+                        try { await deleteRoom(ev.code, ev.hostId || ''); if (form.code === ev.code) {setEditing(false);setForm(emptyEventForm())}; setMsg('活動已刪除'); await refresh() }
+                        catch (err) {setError(err instanceof Error ? err.message : '刪除失敗')}
+                        finally {setBusy(false)}
+                      }}>刪除</button>
                       <button type="button" className="btn btn-ghost" onClick={() => nav(`/r/${ev.code}`)}>
                         進入
                       </button>

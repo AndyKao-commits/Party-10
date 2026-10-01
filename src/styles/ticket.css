@@ -675,3 +675,25 @@ body, #root { width: 100%; min-width: 0; }
 }
 .spotlight__counter { font-size: 11px; color: #6c786f; padding: 0 5px; font-variant-numeric: tabular-nums; }
 .spotlight { touch-action: pan-y; }
+
+/* Mobile-first ticket area table and numbered seat picker. */
+.ticket-area-head,.ticket-area-row {display:grid;grid-template-columns:8px minmax(0,1fr) 80px 70px;gap:8px;align-items:center;width:100%;text-align:left}
+.ticket-area-head {grid-template-columns:minmax(0,1fr) 80px 70px;padding:12px 16px;background:#edf5ef;font-size:13px;font-weight:700}
+.ticket-area-row {background:white;border:0;border-bottom:1px solid #e1e8e3;min-height:64px;padding:12px 8px;font-size:14px;cursor:pointer}
+.ticket-area-row.selected {background:#edf8ef;outline:2px solid #169447;outline-offset:-2px}
+.ticket-area-row:disabled {color:#888;cursor:default}
+.ticket-area-list {margin-bottom:20px}
+.seat-stage {text-align:center;padding:16px;background:#e8eee9;border-radius:8px;margin:20px 0;letter-spacing:3px}
+.seat-legend {display:flex;gap:18px;justify-content:center;font-size:13px;margin-bottom:20px}
+.seat-map {display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:5px;padding:8px 0}
+.seat {min-height:44px;border:1px solid #178649;border-radius:5px;background:#f4fcf6;color:#17673b;font-size:10px;padding:3px 0;cursor:pointer;overflow-wrap:anywhere}
+.seat.chosen {background:#178649;color:white;box-shadow:0 0 0 2px #bbdfc5}
+.seat.sold {background:repeating-linear-gradient(45deg,#e8e8e8,#e8e8e8 3px,#d7d7d7 3px,#d7d7d7 6px);color:#777;border-color:#ccc}
+.seat-summary {display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;background:#f3f7f4;padding:16px;margin:16px 0;border-radius:8px}
+.seat-summary span {flex-basis:100%;font-size:13px}
+.seat-dialog-backdrop {position:fixed;inset:0;background:#0009;z-index:1000;display:grid;place-items:center;padding:20px}
+.seat-dialog {background:white;border-radius:16px;padding:24px;width:min(100%,400px);box-shadow:0 12px 50px #0003}
+.seat-dialog h2 {font-size:20px;line-height:1.6;margin-top:0}
+.admin-seat-area {border:1px solid #dbe7de;border-radius:10px;padding:12px;margin:12px 0;min-width:0}
+.admin-seat-area .field-row {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.admin-seat-area input {width:100%;min-width:0;box-sizing:border-box}
