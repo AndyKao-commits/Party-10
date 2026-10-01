@@ -20,6 +20,7 @@ export type LiveEvent = {
   failChance?: number
   totalTickets?: number
   remaining?: number
+  imageUrl?: string
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {

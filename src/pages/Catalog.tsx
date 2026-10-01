@@ -125,7 +125,14 @@ export function CatalogHome() {
               {done || featured.saleOpen ? '熱賣中' : '即將開賣'}・精選活動
             </div>
             <div className="featured-party__grid">
-              <div className="event-poster" style={{ background: LIVE_GRADIENTS[0] }}>
+              <div
+                className="event-poster"
+                style={{
+                  background: featured.imageUrl
+                    ? `linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.55)), center/cover url(${featured.imageUrl})`
+                    : LIVE_GRADIENTS[0],
+                }}
+              >
                 <div className="poster__eyebrow">pbon TICKET</div>
                 <h2 className="poster__title">{featured.title}</h2>
                 <div className="poster__sub">{featured.subtitle}</div>
@@ -175,7 +182,11 @@ export function CatalogHome() {
                 >
                   <div
                     className="event-card__art"
-                    style={{ background: LIVE_GRADIENTS[i % LIVE_GRADIENTS.length] }}
+                    style={{
+                      background: e.imageUrl
+                        ? `center/cover url(${e.imageUrl})`
+                        : LIVE_GRADIENTS[i % LIVE_GRADIENTS.length],
+                    }}
                   >
                     <span className="event-card__badge">{liveStatus(e)}</span>
                   </div>
@@ -291,7 +302,14 @@ export function FakeActivityPage() {
       <Shell>
         <div className="page-card flash">
           <div className="hero-grid">
-            <div className="event-poster tall" style={{ background: LIVE_GRADIENTS[0] }}>
+            <div
+              className="event-poster tall"
+              style={{
+                background: live.imageUrl
+                  ? `linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.7)), center/cover url(${live.imageUrl})`
+                  : LIVE_GRADIENTS[0],
+              }}
+            >
               <div className="poster__eyebrow">pbon TICKET</div>
               <h2 className="poster__title">{live.title}</h2>
               <div className="poster__sub">{live.subtitle}</div>
@@ -464,7 +482,11 @@ export function SearchPage() {
             <Link key={e.code} to={`/ActivityInfo/Details/${e.code}`} className="event-card buyable">
               <div
                 className="event-card__art"
-                style={{ background: LIVE_GRADIENTS[i % LIVE_GRADIENTS.length] }}
+                style={{
+                  background: e.imageUrl
+                    ? `center/cover url(${e.imageUrl})`
+                    : LIVE_GRADIENTS[i % LIVE_GRADIENTS.length],
+                }}
               />
               <div className="event-card__body">
                 <h3>{e.title}</h3>

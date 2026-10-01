@@ -29,6 +29,7 @@ export type Room = {
   maxPerOrder: number
   queueDelayMs: number
   failChance: number
+  imageUrl?: string
   areas: TicketArea[]
   playerCount: number
   orderCount: number
