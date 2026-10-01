@@ -123,12 +123,14 @@ export function AreaPage() {
           <p className="muted">請選擇票區，再點選座位。</p>
           <div className="ticket-area-head"><span>顏色 / 票區</span><span>票價 NT$</span><span>空位</span></div>
           <div className="ticket-area-list">
-            {room.areas.map((a) => (
+            {room.areas.map((a) => {
+              const available = room.seats.filter(s => s.areaId === a.id && !s.sold).length
+              return (
               <button
                 key={a.id}
                 type="button"
                 className={`ticket-area-row ${selected === a.id ? 'selected' : ''}`}
-                disabled={a.remaining <= 0}
+                disabled={available <= 0}
                 onClick={() => setSelected(a.id)}
               >
                 <span style={{ width: 8, alignSelf: 'stretch', background: a.color }} />
@@ -137,11 +139,11 @@ export function AreaPage() {
 
                 </span>
                 <span>{a.price.toLocaleString()}</span>
-                <span style={{ fontWeight: 800, color: a.remaining ? 'var(--pbon-green-deep)' : 'var(--pbon-warn)' }}>
-                  {a.remaining <= 0 ? '已售完' : `剩 ${a.remaining}`}
+                <span style={{ fontWeight: 800, color: available ? 'var(--pbon-green-deep)' : 'var(--pbon-warn)' }}>
+                  {available <= 0 ? '已售完' : `剩 ${available}`}
                 </span>
               </button>
-            ))}
+            )})}
           </div>
 
           <button
@@ -178,12 +180,12 @@ export function QtyPage() {
     <h2>自行選位</h2><p>{area.name} · NT$ {area.price.toLocaleString()} / 張</p>
     <div className="seat-stage">舞台 / 活動主場</div>
     <div className="seat-legend"><span>□ 可選</span><span>■ 已選</span><span>▧ 已售</span></div>
-    <div className="seat-map" aria-label="座位圖">{seats.map(seat => <button type="button" key={seat.id} disabled={seat.sold || area.remaining <= 0} aria-pressed={valid.includes(seat.id)} aria-label={`${seat.label}${seat.sold ? ' 已售' : ''}`} className={`seat ${seat.sold ? 'sold' : ''} ${valid.includes(seat.id) ? 'chosen' : ''}`} onClick={() => toggle(seat.id)}>{seat.label}</button>)}</div>
+    <div className="seat-map" aria-label="座位圖">{seats.map(seat => <button type="button" key={seat.id} disabled={seat.sold} aria-pressed={valid.includes(seat.id)} aria-label={`${seat.label}${seat.sold ? ' 已售' : ''}`} className={`seat ${seat.sold ? 'sold' : ''} ${valid.includes(seat.id) ? 'chosen' : ''}`} onClick={() => toggle(seat.id)}>{seat.label}</button>)}</div>
     {seats.length === 0 && <div className="error-box">沒有可選座位，請聯絡主辦更新座位資料。</div>}
     <p className="muted">點選座位不會保留，送出購票成功後才成立。每筆最多 {room.maxPerOrder} 張。</p>
     {notice && <div role="status" className="error-box">{notice}</div>}
     {valid.length !== selected.length && <p role="status">部分座位已售出，請重新選擇。</p>}
     <div className="seat-summary"><strong>已選 {valid.length} 張</strong><span>{seats.filter(s => valid.includes(s.id)).map(s => s.label).join('、') || '尚未選擇'}</span><strong>NT$ {(area.price*valid.length).toLocaleString()}</strong></div>
-    <div style={{display:'flex',gap:8}}><button className="btn btn-ghost" onClick={() => nav(`/r/${code}/area`)}>上一步</button><button className="btn btn-orange" style={{flex:1}} disabled={!valid.length || area.remaining < valid.length} onClick={() => {sessionStorage.removeItem(`pbon-order-${code}`);nav(`/r/${code}/checkout?${new URLSearchParams({area:areaId,qty:String(valid.length),seats:valid.join(',')})}`)}}>下一步</button></div>
+    <div style={{display:'flex',gap:8}}><button className="btn btn-ghost" onClick={() => nav(`/r/${code}/area`)}>上一步</button><button className="btn btn-orange" style={{flex:1}} disabled={!valid.length} onClick={() => {sessionStorage.removeItem(`pbon-order-${code}`);nav(`/r/${code}/checkout?${new URLSearchParams({area:areaId,qty:String(valid.length),seats:valid.join(',')})}`)}}>下一步</button></div>
   </div></div></Shell>
 }
