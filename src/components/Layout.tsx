@@ -1,5 +1,6 @@
 import { Link, NavLink } from 'react-router-dom'
 import type { ReactNode } from 'react'
+import { isSupabaseMode } from '../lib/supabase'
 
 export function DemoBanner() {
   return (
@@ -47,7 +48,11 @@ export function Footer() {
         <Link to="/host">主辦控制台</Link>
       </div>
       <p>票務客服專線：0800-000-000（假的）｜pbon 派對售票系統</p>
-      <p>仿 ibon 介面的假搶票遊戲 · 僅供朋友派對娛樂使用</p>
+      <p>
+        {isSupabaseMode ? '雲端模式 · Vercel + Supabase' : '本機模式 · 自家 Wi‑Fi'}
+        {' · '}
+        仿 ibon 介面的假搶票遊戲
+      </p>
     </footer>
   )
 }
