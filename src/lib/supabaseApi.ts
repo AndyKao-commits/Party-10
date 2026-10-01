@@ -140,6 +140,22 @@ export const supabaseApi = {
     const titles=new Map((rooms || []).map(r => [r.code,r.title]))
     return {orders:(orders || []).map(o => ({...mapOrders([o as OrderRow])[0],eventCode:o.room_code as string,eventTitle:String(titles.get(o.room_code) || o.room_code)}))}
   },
+  async cancelPurchaseRecord(orderId: string, hostId: string) {
+    const { error } = await getSupabase()!.rpc('cancel_ticket_order', {
+      p_order_id: orderId,
+      p_host_id: hostId,
+    })
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  },
+  async clearPurchaseRecords(code: string, hostId: string) {
+    const { data, error } = await getSupabase()!.rpc('clear_ticket_orders', {
+      p_code: code,
+      p_host_id: hostId,
+    })
+    if (error) throw new Error(error.message)
+    return { removed: Number(data || 0) }
+  },
   async getFeatured() {
     const sb = getSupabase()!
     const { data: featured, error: fErr } = await sb

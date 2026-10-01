@@ -202,6 +202,42 @@ app.get('/api/admin/orders', (_req,res) => {
   res.json({orders:[...rooms.values()].flatMap(r => r.orders.map(o => ({...o,eventCode:r.code,eventTitle:r.title}))).sort((a,b) => b.createdAt-a.createdAt)})
 })
 
+function releaseOrderSeats(room, order) {
+  const area = room.areas.find((item) => item.id === order.areaId)
+  if (!area) return
+  const sold = room.seats.filter((seat) => seat.areaId === order.areaId && seat.isReal && seat.sold)
+  const matching = sold.filter((seat) => order.seats.includes(seat.label))
+  const fallback = sold.filter((seat) => !matching.includes(seat))
+  const released = [...matching, ...fallback].slice(0, order.qty)
+  released.forEach((seat) => { seat.sold = false })
+  area.remaining = Math.min(area.realSeats, area.remaining + released.length)
+}
+
+app.post('/api/admin/orders/clear', (req,res) => {
+  const code=String(req.body?.code || '').toUpperCase(),room=rooms.get(code)
+  if (!room) return res.status(404).json({error:'找不到活動'})
+  if (req.body?.hostId !== room.hostId) return res.status(403).json({error:'只有主辦可以清除購票紀錄'})
+  const removed=room.orders.length
+  room.seats.forEach((seat) => {if (seat.isReal) seat.sold=false})
+  room.areas.forEach((area) => {area.remaining=area.realSeats})
+  room.orders=[]
+  pushRoom(code)
+  res.json({removed})
+})
+
+app.delete('/api/admin/orders/:id', (req,res) => {
+  for (const room of rooms.values()) {
+    const index=room.orders.findIndex((order) => order.id === req.params.id)
+    if (index < 0) continue
+    if (req.body?.hostId !== room.hostId) return res.status(403).json({error:'只有主辦可以取消訂單'})
+    const [order]=room.orders.splice(index,1)
+    releaseOrderSeats(room,order)
+    pushRoom(room.code)
+    return res.json({ok:true})
+  }
+  return res.status(404).json({error:'找不到訂單'})
+})
+
 app.get('/api/events', (_req, res) => {
   ensureFeaturedRoom()
   const events = [...rooms.values()]

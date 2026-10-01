@@ -24,6 +24,14 @@ test('HTTP seat purchase, concurrency, edit, delete and no recreation',{timeout:
   assert.equal(edited.data.room.areas[0].price,950);assert.equal(edited.data.room.areas[0].remaining,1);assert.equal(edited.data.room.orders.length,1)
   const records=(await request('/api/admin/orders',null,'GET')).data.orders
   assert.equal(records.length,1);assert.equal(records[0].nickname,'買家');assert.equal(records[0].eventTitle,'修改');assert.equal(records[0].areaName,'A區');assert.equal(records[0].unitPrice,700);assert.deepEqual(records[0].seats,[good.room.seats[0].label])
+  assert.equal((await request(`/api/admin/orders/${records[0].id}`,{hostId:'wrong'},'DELETE')).status,403)
+  assert.equal((await request(`/api/admin/orders/${records[0].id}`,{hostId:good.hostId},'DELETE')).status,200)
+  const afterCancel=(await request(`/api/rooms/${g}`,null,'GET')).data.room
+  assert.equal(afterCancel.orders.length,0);assert.equal(afterCancel.areas[0].remaining,2);assert.ok(afterCancel.seats.every(s=>!s.sold))
+  const repurchase=await request(`/api/rooms/${g}/purchase`,body);assert.equal(repurchase.status,200)
+  const cleared=await request('/api/admin/orders/clear',{code:g,hostId:good.hostId});assert.equal(cleared.data.removed,1)
+  const afterClear=(await request(`/api/rooms/${g}`,null,'GET')).data.room
+  assert.equal(afterClear.orders.length,0);assert.equal(afterClear.areas[0].remaining,2);assert.ok(afterClear.seats.every(s=>!s.sold))
   assert.equal((await request(`/api/rooms/${g}`,{hostId:'wrong'},'DELETE')).status,403)
   assert.equal((await request(`/api/rooms/${g}`,{hostId:good.hostId},'DELETE')).status,200)
   assert.equal((await request(`/api/rooms/${g}`,null,'GET')).status,404)
