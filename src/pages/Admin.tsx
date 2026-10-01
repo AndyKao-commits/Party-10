@@ -2,7 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   adminOpenSale,
+  cancelPurchaseRecord,
   createCards,
+  clearPurchaseRecords,
   clearCards,
   createRoom,
   deleteRoom,
@@ -206,6 +208,42 @@ export function AdminPage() {
     }
   }
 
+  const hostForEvent = (code: string) => events.find((event) => event.code === code)?.hostId || ''
+
+  const cancelOrder = async (order: PurchaseRecord) => {
+    if (!window.confirm(`確定取消 ${order.nickname} 的訂單？\n${order.areaName}：${order.seats.join('、')}\n座位會重新開放購買。`)) return
+    setBusy(true)
+    setError(null)
+    try {
+      await cancelPurchaseRecord(order.id, hostForEvent(order.eventCode))
+      setMsg('訂單已取消，座位已重新釋出')
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '取消訂單失敗')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const clearOrders = async () => {
+    const targets = recordEvent === 'all' ? events.filter((event) => records.some((order) => order.eventCode === event.code)) : events.filter((event) => event.code === recordEvent)
+    if (!targets.length) return
+    const label = recordEvent === 'all' ? `全部 ${records.length} 筆購票紀錄` : `「${targets[0].title}」的全部購票紀錄`
+    if (!window.confirm(`確定清除${label}？\n所有真座位都會重新開放購買。`)) return
+    setBusy(true)
+    setError(null)
+    try {
+      const results = await Promise.all(targets.map((event) => clearPurchaseRecords(event.code, event.hostId || '')))
+      const removed = results.reduce((sum, result) => sum + result.removed, 0)
+      setMsg(`已清除 ${removed} 筆購票紀錄，座位已重新釋出`)
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '清除購票紀錄失敗')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (!authed) {
     return (
       <Shell>
@@ -269,16 +307,17 @@ export function AdminPage() {
         {msg && <div className="status-pill" style={{ margin: '8px 0' }}>{msg}</div>}
 
         {tab === 'orders' && <section className="page-card notice-box">
-          <div className="admin-top"><h3>購票紀錄</h3><button className="btn btn-ghost" onClick={() => void refresh()}>重新整理</button></div>
-          <p className="muted">只有成功買到真座位的訂單會列在這裡。</p>
+          <div className="admin-top"><h3>購票紀錄</h3><button className="btn btn-ghost" disabled={busy} onClick={() => void refresh()}>重新整理</button></div>
+          <p className="muted">只有成功買到真座位的訂單會列在這裡。取消或清除後，座位會重新開放購買。</p>
           <div className="field"><label htmlFor="order-event">活動</label><select id="order-event" value={recordEvent} onChange={e => setRecordEvent(e.target.value)}><option value="all">全部活動</option>{events.map(e => <option key={e.code} value={e.code}>{e.title}（{e.code}）</option>)}</select></div>
           <div className="field"><label htmlFor="order-search">搜尋購票人、票區、座位或訂單</label><input id="order-search" value={recordFilter} onChange={e => setRecordFilter(e.target.value)} placeholder="輸入姓名、座位或訂單編號"/></div>
           {recordError ? <div role="alert" className="error-box">{recordError}</div> : (() => {
             const filtered=records.filter(o => (recordEvent === 'all' || recordEvent === o.eventCode) && [o.nickname,o.areaName,o.code,o.eventTitle,...o.seats].join(' ').toLowerCase().includes(recordFilter.trim().toLowerCase()))
-            return <><p>成功訂單 {filtered.length} 筆 · 共 {filtered.reduce((n,o) => n+o.qty,0)} 張</p>{filtered.length === 0 ? <p className="muted">{records.length ? '沒有符合條件的訂單' : '目前還沒有成功購票紀錄'}</p> : filtered.map(o => <article className="purchase-record" key={o.id}>
+            return <><div className="record-summary"><p>成功訂單 {filtered.length} 筆 · 共 {filtered.reduce((n,o) => n+o.qty,0)} 張</p>{records.length > 0 && <button type="button" className="btn btn-danger" disabled={busy || (recordEvent !== 'all' && !filtered.length)} onClick={() => void clearOrders()}>{recordEvent === 'all' ? '清除全部紀錄' : '清除此活動紀錄'}</button>}</div>{filtered.length === 0 ? <p className="muted">{records.length ? '沒有符合條件的訂單' : '目前還沒有成功購票紀錄'}</p> : filtered.map(o => <article className="purchase-record" key={o.id}>
               <div className="purchase-record-head"><strong>{o.nickname}</strong><span className="status-pill">購票成功</span></div>
               <p>{o.eventTitle} <small>（{o.eventCode}）</small></p>
               <dl><dt>票區 / 張數</dt><dd>{o.areaName} · {o.qty} 張</dd><dt>座位</dt><dd>{o.seats.join('、')}</dd><dt>成交金額</dt><dd>{o.unitPrice == null ? '舊訂單未記錄金額' : `NT$ ${(o.unitPrice*o.qty).toLocaleString()}`}</dd><dt>購票時間</dt><dd>{new Date(o.createdAt).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false})}</dd><dt>取票序號</dt><dd className="order-code">{o.code}</dd></dl>
+              <button type="button" className="btn btn-ghost btn-block" disabled={busy} onClick={() => void cancelOrder(o)}>取消此訂單並釋出座位</button>
             </article>)}</>
           })()}
         </section>}

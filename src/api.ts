@@ -177,3 +177,19 @@ export function listPurchaseRecords() {
   if (isSupabaseMode) return supabaseApi.listPurchaseRecords()
   return req<{ orders: PurchaseRecord[] }>('/api/admin/orders')
 }
+
+export function cancelPurchaseRecord(orderId: string, hostId: string) {
+  if (isSupabaseMode) return supabaseApi.cancelPurchaseRecord(orderId, hostId)
+  return req<{ ok: boolean }>(`/api/admin/orders/${orderId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ hostId }),
+  })
+}
+
+export function clearPurchaseRecords(code: string, hostId: string) {
+  if (isSupabaseMode) return supabaseApi.clearPurchaseRecords(code, hostId)
+  return req<{ removed: number }>('/api/admin/orders/clear', {
+    method: 'POST',
+    body: JSON.stringify({ code, hostId }),
+  })
+}
