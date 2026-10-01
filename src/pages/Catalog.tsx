@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { getRoom, listDecoys, listEvents, type LiveEvent } from '../api'
+import { EventOverview } from '../components/EventOverview'
 import { Shell } from '../components/Layout'
 import { useCountdown } from '../hooks/useCountdown'
 import {
@@ -72,6 +73,8 @@ function Spotlight({ events }: { events: CatalogItem[] }) {
   const [index, setIndex] = useState(0)
   const [paused, setPaused] = useState(false)
   const [hovered, setHovered] = useState(false)
+  const touchStart = useRef<number | null>(null)
+  const swiped = useRef(false)
   useEffect(() => {
     if (
       paused ||
@@ -92,24 +95,50 @@ function Spotlight({ events }: { events: CatalogItem[] }) {
     <section
       className="spotlight"
       aria-label="精選節目"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocusCapture={() => setPaused(true)}
+      onPointerEnter={(e) => {
+        if (e.pointerType === 'mouse') setHovered(true)
+      }}
+      onPointerLeave={() => setHovered(false)}
+      onTouchStart={(e) => {
+        swiped.current = false
+        touchStart.current = e.touches[0]?.clientX ?? null
+      }}
+      onTouchEnd={(e) => {
+        const start = touchStart.current
+        touchStart.current = null
+        const end = e.changedTouches[0]?.clientX
+        if (start == null || end == null || Math.abs(end - start) < 45) return
+        swiped.current = true
+        setIndex(
+          (i) => (i + (end < start ? 1 : -1) + events.length) % events.length,
+        )
+      }}
     >
-      <Link to={event.href} className="spotlight__link">
-        <div className="spotlight__copy">
-          <span className="spotlight__eyebrow">FEATURED EVENT / 精選節目</span>
-          <h1>{event.title}</h1>
-          <p>{event.dateText}</p>
-          <p>{event.venue}</p>
-          <span className="spotlight__cta">
-            節目資訊 <span aria-hidden="true">→</span>
-          </span>
-        </div>
+      <Link
+        to={event.href}
+        className="spotlight__link"
+        onClick={(e) => {
+          if (swiped.current) {
+            e.preventDefault()
+            swiped.current = false
+          }
+        }}
+      >
         <div className="spotlight__art">
           {event.imageUrl && (
-            <img src={event.imageUrl} alt={event.title} fetchPriority="high" />
+            <img
+              src={event.imageUrl}
+              alt={event.title}
+              fetchPriority="high"
+              decoding="async"
+            />
           )}
+        </div>
+        <div className="spotlight__caption">
+          <h1>{event.title}</h1>
+          <p>
+            {event.dateText} · {event.venue}
+          </p>
         </div>
       </Link>
       <div className="spotlight__controls">
@@ -122,16 +151,21 @@ function Spotlight({ events }: { events: CatalogItem[] }) {
         >
           ‹
         </button>
-        {events.map((e, i) => (
-          <button
-            key={e.id}
-            type="button"
-            aria-label={`顯示 ${e.title}`}
-            aria-pressed={i === index % events.length}
-            className={`spotlight__dot ${i === index % events.length ? 'active' : ''}`}
-            onClick={() => setIndex(i)}
-          />
-        ))}
+        {events.map((e, i) =>
+          Math.floor(i / 5) === Math.floor((index % events.length) / 5) ? (
+            <button
+              key={e.id}
+              type="button"
+              aria-label={`顯示 ${e.title}`}
+              aria-pressed={i === index % events.length}
+              className={`spotlight__dot ${i === index % events.length ? 'active' : ''}`}
+              onClick={() => setIndex(i)}
+            />
+          ) : null,
+        )}
+        <span className="spotlight__counter">
+          {(index % events.length) + 1} / {events.length}
+        </span>
         <button
           type="button"
           aria-label="下一個節目"
@@ -200,7 +234,7 @@ export function CatalogHome() {
         .toLowerCase()
         .includes(q.trim().toLowerCase()),
   )
-  const spotlights = events.filter((e) => e.category === 'concert').slice(0, 4)
+  const spotlights = events.filter((e) => Boolean(e.imageUrl))
   return (
     <Shell>
       <div className="catalog">
@@ -350,87 +384,25 @@ export function FakeActivityPage() {
     const open = live.saleOpen || done
     return (
       <Shell>
-        <div className="page-card activity-detail">
-          <div className="detail-breadcrumb">
-            <Link to="/">首頁</Link> / 節目資訊
-          </div>
-          <div className="hero-grid">
-            <div className="detail-poster">
-              {live.imageUrl ? (
-                <img src={live.imageUrl} alt={live.title} />
-              ) : (
-                <div className="poster-fallback">{live.title}</div>
-              )}
-            </div>
-            <div>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  flexWrap: 'wrap',
-                  marginBottom: 10,
-                }}
-              >
-                <span className={`status-pill ${open ? 'hot' : ''}`}>
-                  {open ? '熱賣中' : '即將開賣'}
-                </span>
-                <span className="status-pill">線上購票</span>
-              </div>
-              <h1 className="activity-title">{live.title}</h1>
-              <ul className="meta-list">
-                <li>
-                  <strong>演出時間</strong>
-                  <span>{live.dateText}</span>
-                </li>
-                <li>
-                  <strong>演出地點</strong>
-                  <span>{live.venue}</span>
-                </li>
-                <li>
-                  <strong>開賣時間</strong>
-                  <span>
-                    {new Date(live.saleAt).toLocaleString('zh-TW', {
-                      timeZone: 'Asia/Taipei',
-                      hour12: false,
-                    })}
-                  </span>
-                </li>
-                <li>
-                  <strong>票價</strong>
-                  <span>
-                    {live.areas
-                      .map((a) => `NT$${a.price.toLocaleString()}`)
-                      .join(' / ')}
-                  </span>
-                </li>
-              </ul>
-              <div className="sale-banner">
-                <div>
-                  <div className="sale-banner__label">
-                    {open ? '點選線上購票開始搶票' : '距離開賣還有'}
-                  </div>
-                  {!open && <div className="countdown">{label}</div>}
-                </div>
-                <button
-                  className="btn btn-orange buy-cta"
-                  type="button"
-                  disabled={!open}
-                  onClick={() => nav(`/r/${live.code}`)}
-                >
-                  {open ? '線上購票' : '尚未開賣'}
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="notice-box">
-            <h3>購票須知</h3>
-            <ul>
-              {live.notices.map((n) => (
-                <li key={n}>{n}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        <EventOverview
+          title={live.title}
+          subtitle={live.subtitle}
+          imageUrl={live.imageUrl}
+          dateText={live.dateText}
+          venue={live.venue}
+          priceText={live.areas
+            .map((a) => `NT$${a.price.toLocaleString()}`)
+            .join(' / ')}
+          status={open ? '熱賣中' : '即將開賣'}
+          saleText={new Date(live.saleAt).toLocaleString('zh-TW', {
+            timeZone: 'Asia/Taipei',
+            hour12: false,
+          })}
+          countdown={open ? undefined : label}
+          notices={live.notices}
+          disabled={!open}
+          onBuy={() => nav(`/r/${live.code}`)}
+        />
       </Shell>
     )
   }
@@ -460,82 +432,17 @@ export function FakeActivityPage() {
 
   return (
     <Shell>
-      <div className="page-card activity-detail">
-        <div className="detail-breadcrumb">
-          <Link to="/">首頁</Link> / 節目資訊
-        </div>
-        <div className="hero-grid">
-          <div className="detail-poster">
-            {event.imageUrl ? (
-              <img src={event.imageUrl} alt={event.title} />
-            ) : (
-              <div className="poster-fallback">{event.title}</div>
-            )}
-          </div>
-          <div>
-            <span className="status-pill">{statusLabel(event)}</span>
-            <h1 className="activity-title">{event.title}</h1>
-            <p className="muted">
-              {event.subtitle.includes('假') ? event.title : event.subtitle}
-            </p>
-            <ul className="meta-list">
-              <li>
-                <strong>演出時間</strong>
-                <span>{event.dateText}</span>
-              </li>
-              <li>
-                <strong>演出地點</strong>
-                <span>{event.venue}</span>
-              </li>
-              <li>
-                <strong>票價</strong>
-                <span>{event.priceText}</span>
-              </li>
-            </ul>
-            <div className="sale-banner">
-              <div>
-                <div className="sale-banner__label">線上購票</div>
-              </div>
-              <button
-                className="btn btn-orange buy-cta"
-                type="button"
-                onClick={onBuy}
-              >
-                線上購票
-              </button>
-            </div>
-            {msg && (
-              <div className="error-box shake" style={{ marginTop: 12 }}>
-                {msg}
-              </div>
-            )}
-          </div>
-        </div>
-        <nav className="detail-section-nav" aria-label="活動資訊">
-          <a href="#program-info">節目介紹</a>
-          <a href="#ticket-notice">購票須知</a>
-          <a href="#entry-notice">入場規定</a>
-        </nav>
-        <section className="notice-box" id="program-info">
-          <h3>節目介紹</h3>
-          <p>{event.title}</p>
-          <p>
-            {event.dateText} · {event.venue}
-          </p>
-        </section>
-        <section className="notice-box" id="ticket-notice">
-          <h3>購票須知</h3>
-          <ul>
-            <li>請確認活動名稱、場次及票種後再進行購票。</li>
-            <li>票券數量與販售狀態以購票頁面顯示為準。</li>
-            <li>本平台為派對娛樂模擬系統，請使用主辦提供的測試資料。</li>
-          </ul>
-        </section>
-        <section className="notice-box" id="entry-notice">
-          <h3>入場規定</h3>
-          <p>本頁展示票券無實際展演入場效力，派對安排請依主辦人通知。</p>
-        </section>
-      </div>
+      <EventOverview
+        title={event.title}
+        subtitle={event.subtitle.includes('假') ? '' : event.subtitle}
+        imageUrl={event.imageUrl}
+        dateText={event.dateText}
+        venue={event.venue}
+        priceText={event.priceText}
+        status={statusLabel(event)}
+        onBuy={onBuy}
+        message={msg}
+      />
     </Shell>
   )
 }
