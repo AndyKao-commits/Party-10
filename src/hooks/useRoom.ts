@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { Room, Session } from '../types'
 import { getRoom, wsUrl } from '../api'
+import { isSupabaseMode } from '../lib/supabase'
+import { supabaseApi } from '../lib/supabaseApi'
 
 const SESSION_KEY = 'pbon-session'
 
@@ -29,6 +31,24 @@ export function useRoom(code: string | undefined) {
   useEffect(() => {
     if (!code) return
     let closed = false
+
+    if (isSupabaseMode) {
+      setConnected(true)
+      const unsub = supabaseApi.subscribeRoom(code, (r) => {
+        if (!closed) {
+          setRoom(r)
+          setError(null)
+        }
+      })
+      getRoom(code).catch((e) => {
+        if (!closed) setError(e instanceof Error ? e.message : '載入失敗')
+      })
+      return () => {
+        closed = true
+        unsub()
+      }
+    }
+
     let ws: WebSocket | null = null
     let retry: number | undefined
 

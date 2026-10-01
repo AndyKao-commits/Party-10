@@ -1,10 +1,10 @@
-import { Link } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
 export function DemoBanner() {
   return (
     <div className="demo-banner">
-      假的 · 派對娛樂專用 · 無真實票務效力 · FAKE TICKETING FOR PARTY FUN ONLY
+      本站為派對娛樂展示系統 · 票券無真實效力
     </div>
   )
 }
@@ -15,13 +15,26 @@ export function Header() {
       <div className="site-header__inner">
         <Link to="/" className="brand">
           <span className="brand__mark">pbon</span>
-          <span className="brand__sub">派對售票系統</span>
+          <span className="brand__sub">售票系統</span>
         </Link>
-        <nav className="header-links">
-          <Link to="/host">開房間</Link>
-          <Link to="/join">加入</Link>
+        <nav className="header-links header-links--desktop">
+          <NavLink to="/" end>
+            熱門活動
+          </NavLink>
+          <NavLink to="/search">詳細搜尋</NavLink>
+          <NavLink to="/orders">訂單查詢</NavLink>
+          <NavLink to="/news">公告</NavLink>
         </nav>
       </div>
+      <nav className="header-subnav">
+        <NavLink to="/" end>
+          首頁
+        </NavLink>
+        <NavLink to="/search?q=演唱會">展演</NavLink>
+        <NavLink to="/search?q=展覽">展覽</NavLink>
+        <NavLink to="/search?q=棒球">運動</NavLink>
+        <NavLink to="/orders">訂單查詢</NavLink>
+      </nav>
     </header>
   )
 }
@@ -29,7 +42,15 @@ export function Header() {
 export function Footer() {
   return (
     <footer className="site-footer">
-      pbon 派對售票系統 · 仿 ibon 介面的假搶票遊戲 · 僅供朋友派對娛樂使用
+      <div className="footer-links">
+        <Link to="/">熱門活動</Link>
+        <Link to="/news">消息公告</Link>
+        <Link to="/orders">訂單查詢</Link>
+        <Link to="/admin" className="footer-admin">
+          後台
+        </Link>
+      </div>
+      <p>票務客服專線：0800-016-138（展示用）｜pbon 售票系統</p>
     </footer>
   )
 }

@@ -1,32 +1,30 @@
-# pbon 派對售票系統
+# pbon 售票系統
 
-仿 [ibon 售票活動頁](https://ticket.ibon.com.tw/) 介面的**假搶票遊戲**，給小派對跟朋友一起玩。
+一打開就是仿 ibon 的售票站首頁。訪客逛活動、搶票；你從後台登入建立活動並設定開賣時間。
 
-一切都是假的：不會扣款、沒有真票、沒有法律效力。就是好玩。
+## 訪客
 
-## 怎麼玩
+開網站首頁 → 熱門活動／搜尋 → 點可購票活動 → 線上購票。
 
-1. 主辦開啟房間（設定活動名、倒數秒數、限購張數、忙線機率）
-2. 朋友用 6 碼房間碼加入
-3. 一起盯著活動頁倒數 → 開賣後按「線上購票」
-4. 流量控管 → 選票區 → 選張數 → 假付款 → 搶到顯示取票序號
-5. 活動頁「搶票戰況」即時看誰搶到
+## 後台
 
-## 開發
+網址：`/admin`  
+預設密碼：`party2026`（可用環境變數 `VITE_ADMIN_PASSWORD` 改）
+
+可建立活動、設定開賣時間、設為主打、立刻開賣。
+
+## Vercel + Supabase
+
+1. Supabase SQL Editor 執行 `supabase/schema.sql`
+2. Vercel 環境變數：
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_ADMIN_PASSWORD`（建議自訂）
+3. Deploy（Production 分支請用含最新程式的 `main`）
+
+## 本機 Wi‑Fi
 
 ```bash
 npm install
-npm run dev
+npm run party
 ```
-
-- 前端：http://localhost:5173
-- API / WS：http://localhost:3001
-
-## 正式啟動（build 後）
-
-```bash
-npm run build
-npm start
-```
-
-然後開 http://localhost:3001
