@@ -37,6 +37,66 @@ const rooms = new Map()
 /** @type {Map<string, Set<import('ws').WebSocket>>} */
 const roomSockets = new Map()
 
+/** Featured homepage party room code */
+let featuredCode = 'PARTY0'
+
+function createRoomObject(body = {}, { code, hostId, hostName } = {}) {
+  const saleInSec = Number(body.saleInSec ?? 120)
+  const resolvedHostId = hostId || randomUUID()
+  const resolvedHostName = String(hostName || body.hostName || '主辦人').slice(0, 20)
+  /** @type {Room} */
+  const room = {
+    code,
+    hostId: resolvedHostId,
+    title: String(body.title || 'PARTY HOUSE 2026 小派對 WORLD TOUR').slice(0, 80),
+    subtitle: String(body.subtitle || '＜FUN ONLY＞ in LIVING ROOM').slice(0, 80),
+    venue: String(body.venue || '你家客廳・派對主舞台').slice(0, 80),
+    dateText: String(body.dateText || '今晚・派對開演').slice(0, 80),
+    saleAt: Date.now() + Math.max(5, saleInSec) * 1000,
+    saleOpen: false,
+    maxPerOrder: Math.min(4, Math.max(1, Number(body.maxPerOrder || 2))),
+    queueDelayMs: Math.min(8000, Math.max(800, Number(body.queueDelayMs || 2500))),
+    failChance: Math.min(0.6, Math.max(0, Number(body.failChance ?? 0.15))),
+    areas: Array.isArray(body.areas) && body.areas.length
+      ? body.areas.map((a, i) => ({
+          id: String(a.id || `area-${i}`),
+          name: String(a.name || `票區 ${i + 1}`),
+          price: Number(a.price || 1000),
+          total: Number(a.total || 10),
+          remaining: Number(a.total || 10),
+          color: String(a.color || '#16a34a'),
+        }))
+      : defaultAreas(),
+    players: [{ id: resolvedHostId, nickname: resolvedHostName, isHost: true }],
+    orders: [],
+    notices: [
+      '本系統為派對娛樂用假搶票，一切票券皆為假的，沒有真實效力。',
+      '為避免開賣時「登入逾時」，請於開賣前重新整理頁面確認連線狀態。',
+      '每筆訂單限購張數以主辦設定為準。流量控管中請耐心等候。',
+      '首頁其他活動皆為裝飾用假頁，僅本場可購票。',
+    ],
+    createdAt: Date.now(),
+  }
+  return room
+}
+
+function ensureFeaturedRoom() {
+  featuredCode = String(process.env.FEATURED_CODE || 'PARTY0').toUpperCase()
+  if (!rooms.has(featuredCode)) {
+    const room = createRoomObject(
+      {
+        saleInSec: 365 * 24 * 3600,
+        failChance: 0.12,
+        maxPerOrder: 2,
+      },
+      { code: featuredCode, hostName: '系統' },
+    )
+    room.saleOpen = false
+    rooms.set(featuredCode, room)
+  }
+  return rooms.get(featuredCode)
+}
+
 function codeGen() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let s = ''
@@ -109,53 +169,36 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
+ensureFeaturedRoom()
+
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, rooms: rooms.size })
+  res.json({ ok: true, rooms: rooms.size, featuredCode })
+})
+
+app.get('/api/featured', (_req, res) => {
+  const room = ensureFeaturedRoom()
+  room.saleOpen = room.saleOpen || Date.now() >= room.saleAt
+  res.json({ room: publicRoom(room), hostHint: 'POST /api/featured/claim-host' })
+})
+
+app.post('/api/featured/claim-host', (req, res) => {
+  const room = ensureFeaturedRoom()
+  const nickname = String(req.body?.nickname || '主辦人').slice(0, 20)
+  const hostId = randomUUID()
+  room.hostId = hostId
+  room.players = room.players.filter((p) => !p.isHost)
+  room.players.unshift({ id: hostId, nickname, isHost: true })
+  pushRoom(room.code)
+  res.json({ hostId, room: publicRoom(room) })
 })
 
 app.post('/api/rooms', (req, res) => {
   const body = req.body || {}
   let code = codeGen()
-  while (rooms.has(code)) code = codeGen()
-
+  while (rooms.has(code) || code === featuredCode) code = codeGen()
   const hostId = randomUUID()
   const hostName = String(body.hostName || '主辦人').slice(0, 20)
-  const saleInSec = Number(body.saleInSec ?? 30)
-  const saleAt = Date.now() + Math.max(5, saleInSec) * 1000
-
-  /** @type {Room} */
-  const room = {
-    code,
-    hostId,
-    title: String(body.title || 'PARTY HOUSE 2026 小派對 WORLD TOUR').slice(0, 80),
-    subtitle: String(body.subtitle || '＜FUN ONLY＞ in LIVING ROOM').slice(0, 80),
-    venue: String(body.venue || '你家客廳・派對主舞台').slice(0, 80),
-    dateText: String(body.dateText || '今晚・派對開演').slice(0, 80),
-    saleAt,
-    saleOpen: false,
-    maxPerOrder: Math.min(4, Math.max(1, Number(body.maxPerOrder || 2))),
-    queueDelayMs: Math.min(8000, Math.max(800, Number(body.queueDelayMs || 2500))),
-    failChance: Math.min(0.6, Math.max(0, Number(body.failChance ?? 0.15))),
-    areas: Array.isArray(body.areas) && body.areas.length
-      ? body.areas.map((a, i) => ({
-          id: String(a.id || `area-${i}`),
-          name: String(a.name || `票區 ${i + 1}`),
-          price: Number(a.price || 1000),
-          total: Number(a.total || 10),
-          remaining: Number(a.total || 10),
-          color: String(a.color || '#16a34a'),
-        }))
-      : defaultAreas(),
-    players: [{ id: hostId, nickname: hostName, isHost: true }],
-    orders: [],
-    notices: [
-      '本系統為派對娛樂用假搶票，一切票券皆為假的，沒有真實效力。',
-      '為避免開賣時「登入逾時」，請於開賣前重新整理頁面確認連線狀態。',
-      '每筆訂單限購張數以主辦設定為準。流量控管中請耐心等候。',
-    ],
-    createdAt: Date.now(),
-  }
-
+  const room = createRoomObject(body, { code, hostId, hostName })
   rooms.set(code, room)
   res.json({ hostId, room: publicRoom(room) })
 })

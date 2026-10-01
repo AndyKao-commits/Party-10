@@ -124,8 +124,46 @@ img {
   opacity: 0.95;
 }
 
-.header-links a:hover {
+.header-links a:hover,
+.header-subnav a:hover {
   text-decoration: underline;
+}
+
+.header-subnav {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px 10px;
+  max-width: 1100px;
+  margin: 0 auto;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.header-subnav a {
+  white-space: nowrap;
+  opacity: 0.92;
+}
+
+.header-subnav a.active,
+.header-links a.active {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+@media (max-width: 800px) {
+  .header-links--desktop {
+    display: none;
+  }
+}
+
+.footer-links {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
 .shell {

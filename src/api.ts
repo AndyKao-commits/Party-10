@@ -24,6 +24,17 @@ export function createRoom(body: Record<string, unknown>) {
   })
 }
 
+export function getFeatured() {
+  return req<{ room: Room; hostHint: string }>('/api/featured')
+}
+
+export function claimFeaturedHost(nickname: string) {
+  return req<{ hostId: string; room: Room }>('/api/featured/claim-host', {
+    method: 'POST',
+    body: JSON.stringify({ nickname }),
+  })
+}
+
 export function getRoom(code: string) {
   return req<{ room: Room }>(`/api/rooms/${code}`)
 }
