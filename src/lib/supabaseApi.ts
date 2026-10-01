@@ -2,6 +2,24 @@ import type { FakeEvent } from '../data/catalog'
 import type { Order, Room, TicketArea } from '../types'
 import { getSupabase } from './supabase'
 
+function mapDecoyRow(e: Record<string, unknown>): FakeEvent {
+  return {
+    id: e.id as string,
+    slug: e.slug as string,
+    title: e.title as string,
+    subtitle: (e.subtitle as string) || '',
+    category: e.category as FakeEvent['category'],
+    venue: (e.venue as string) || '',
+    dateText: (e.date_text as string) || '',
+    priceText: (e.price_text as string) || '',
+    status: e.status as FakeEvent['status'],
+    badge: (e.badge as string) || undefined,
+    gradient: (e.gradient as string) || 'linear-gradient(160deg,#145c3f,#1a1a1a)',
+    blurb: (e.blurb as string) || '',
+    imageUrl: (e.image_url as string) || '',
+  }
+}
+
 type RoomRow = {
   code: string
   host_id: string
@@ -349,7 +367,11 @@ export const supabaseApi = {
     const sb = getSupabase()!
     const { data, error } = await sb.from('decoy_events').select('*').order('sort_order', { ascending: true })
     if (error) throw new Error(error.message)
-    if (!data || data.length === 0) {
+    const needsSeed =
+      !data ||
+      data.length === 0 ||
+      data.some((row) => !String(row.image_url || '').trim())
+    if (needsSeed) {
       const { FAKE_EVENTS } = await import('../data/catalog')
       const rows = FAKE_EVENTS.map((e, i) => ({
         id: e.id,
@@ -366,28 +388,18 @@ export const supabaseApi = {
         blurb: e.blurb,
         image_url: e.imageUrl || '',
         sort_order: i,
+        updated_at: new Date().toISOString(),
       }))
       const { error: insErr } = await sb.from('decoy_events').upsert(rows)
       if (insErr) throw new Error(insErr.message)
-      return this.listDecoys()
+      const { data: seeded, error: again } = await sb
+        .from('decoy_events')
+        .select('*')
+        .order('sort_order', { ascending: true })
+      if (again) throw new Error(again.message)
+      return { events: (seeded || []).map(mapDecoyRow) }
     }
-    return {
-      events: data.map((e): FakeEvent => ({
-        id: e.id as string,
-        slug: e.slug as string,
-        title: e.title as string,
-        subtitle: (e.subtitle as string) || '',
-        category: e.category as FakeEvent['category'],
-        venue: (e.venue as string) || '',
-        dateText: (e.date_text as string) || '',
-        priceText: (e.price_text as string) || '',
-        status: e.status as FakeEvent['status'],
-        badge: (e.badge as string) || undefined,
-        gradient: (e.gradient as string) || 'linear-gradient(160deg,#145c3f,#1a1a1a)',
-        blurb: (e.blurb as string) || '',
-        imageUrl: (e.image_url as string) || '',
-      })),
-    }
+    return { events: data.map(mapDecoyRow) }
   },
 
   async upsertDecoy(event: Record<string, unknown>) {

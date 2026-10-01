@@ -474,7 +474,12 @@ export function SearchPage() {
           ))}
           {results.map((e) => (
             <Link key={e.id} to={`/ActivityInfo/Details/${e.slug}`} className="event-card">
-              <div className="event-card__art" style={{ background: e.gradient }} />
+              <div
+                className="event-card__art"
+                style={{
+                  background: e.imageUrl ? `center/cover url(${e.imageUrl})` : e.gradient,
+                }}
+              />
               <div className="event-card__body">
                 <h3>{e.title}</h3>
                 <p className="muted">{e.venue}</p>
