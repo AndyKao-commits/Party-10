@@ -60,7 +60,11 @@ export function purchase(
 }
 
 export function wsUrl(code: string) {
+  // Same-origin so phones only need one URL/port (Vite proxies /ws in dev).
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-  const host = import.meta.env.DEV ? `${location.hostname}:3001` : location.host
-  return `${proto}://${host}/ws?code=${encodeURIComponent(code)}`
+  return `${proto}://${location.host}/ws?code=${encodeURIComponent(code)}`
+}
+
+export function joinUrl(code: string) {
+  return `${location.origin}/join?code=${encodeURIComponent(code)}`
 }

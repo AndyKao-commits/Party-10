@@ -299,6 +299,7 @@ setInterval(() => {
   }
 }, 500)
 
-httpServer.listen(PORT, () => {
-  console.log(`Party ticket server on http://localhost:${PORT}`)
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`Party ticket server on http://0.0.0.0:${PORT}`)
+  console.log(`Phone / LAN: open this machine's IP on port ${PORT}`)
 })

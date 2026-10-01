@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { createRoom, joinRoom } from '../api'
 import { saveSession } from '../hooks/useRoom'
 import { Shell } from '../components/Layout'
@@ -28,10 +28,15 @@ export function LandingPage() {
           <h3>怎麼玩</h3>
           <ol style={{ margin: 0, paddingLeft: 18 }}>
             <li>主辦開房間，設定活動名稱、開賣倒數、票區庫存。</li>
-            <li>朋友用房間碼加入，一起盯著活動頁倒數。</li>
+            <li>把 QR／分享連結傳給朋友，用手機掃碼加入。</li>
             <li>開賣後狂按「線上購票」→ 排隊 → 選票區 → 搶！</li>
             <li>票有限，先搶先贏；忙線或售完也是派對的一部分。</li>
           </ol>
+          <h3 style={{ marginTop: 16 }}>手機注意</h3>
+          <p style={{ marginBottom: 0 }}>
+            請用大家都能開的網址（區網 IP 或分享連結），不要用電腦上的 localhost。
+            主辦開房後頁面會出現 QR，直接掃就好。
+          </p>
         </section>
       </div>
     </Shell>
@@ -151,10 +156,16 @@ export function HostPage() {
 
 export function JoinPage() {
   const nav = useNavigate()
-  const [code, setCode] = useState('')
+  const [params] = useSearchParams()
+  const [code, setCode] = useState(() => (params.get('code') || '').toUpperCase())
   const [nickname, setNickname] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fromQuery = (params.get('code') || '').toUpperCase()
+    if (fromQuery) setCode(fromQuery)
+  }, [params])
 
   const onJoin = async (e: FormEvent) => {
     e.preventDefault()
@@ -180,6 +191,7 @@ export function JoinPage() {
     <Shell>
       <form className="page-card host-panel flash" onSubmit={onJoin}>
         <h2 style={{ marginTop: 0 }}>加入搶票房間</h2>
+        <p className="muted">掃 QR 或貼連結進來後，填暱稱就能搶。</p>
         <div className="field">
           <label>房間碼（6 碼）</label>
           <input
@@ -187,12 +199,22 @@ export function JoinPage() {
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             maxLength={6}
             placeholder="例如 AB12CD"
+            inputMode="text"
+            autoCapitalize="characters"
+            autoCorrect="off"
             required
           />
         </div>
         <div className="field">
           <label>暱稱（搶到票會顯示）</label>
-          <input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="你的名字" />
+          <input
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="你的名字"
+            autoComplete="nickname"
+            enterKeyHint="go"
+            autoFocus={Boolean(code)}
+          />
         </div>
         {error && <div className="error-box shake">{error}</div>}
         <button className="btn btn-green btn-block" disabled={busy}>

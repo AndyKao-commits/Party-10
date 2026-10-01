@@ -1,18 +1,22 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { openSale, resetStock } from '../api'
+import { JoinGate } from '../components/JoinGate'
 import { Shell } from '../components/Layout'
+import { SharePanel } from '../components/SharePanel'
 import { useCountdown } from '../hooks/useCountdown'
 import { loadSession, useRoom } from '../hooks/useRoom'
 
 export function ActivityPage() {
   const { code = '' } = useParams()
   const { room, error, connected } = useRoom(code)
-  const session = loadSession()
+  const [session, setSession] = useState(() => loadSession())
   const { label, done } = useCountdown(room?.saleAt)
   const [tab, setTab] = useState<'info' | 'buy' | 'board'>('info')
   const nav = useNavigate()
-  const isHost = session?.code === code && session.isHost && !!session.hostId
+  const inRoom = session?.code === code
+  const isHost = inRoom && session.isHost && !!session.hostId
+  const needsJoin = Boolean(room) && !inRoom
 
   const totalLeft = useMemo(
     () => room?.areas.reduce((s, a) => s + a.remaining, 0) ?? 0,
@@ -47,6 +51,12 @@ export function ActivityPage() {
 
   return (
     <Shell>
+      {needsJoin && (
+        <JoinGate
+          code={code}
+          onJoined={() => setSession(loadSession())}
+        />
+      )}
       <div className="page-card flash">
         <div className="hero-grid">
           <div className="poster">
@@ -107,8 +117,8 @@ export function ActivityPage() {
                 )}
               </div>
               <button
-                className="btn btn-orange"
-                disabled={!saleOpen}
+                className="btn btn-orange buy-cta"
+                disabled={!saleOpen || needsJoin}
                 onClick={() => nav(`/r/${code}/queue`)}
               >
                 {saleOpen ? '線上購票' : '尚未開賣'}
@@ -116,26 +126,37 @@ export function ActivityPage() {
             </div>
 
             {isHost && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                <button
-                  className="btn btn-green"
-                  onClick={() => session.hostId && openSale(code, session.hostId)}
-                >
-                  立刻開賣
-                </button>
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => session.hostId && resetStock(code, session.hostId, 20)}
-                >
-                  重置庫存並倒數 20 秒
-                </button>
-                <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>
-                  在線 {room.playerCount} 人 · 已成交 {room.orderCount} 筆
-                </span>
-              </div>
+              <>
+                <div className="host-actions">
+                  <button
+                    className="btn btn-green"
+                    onClick={() => session?.hostId && openSale(code, session.hostId)}
+                  >
+                    立刻開賣
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => session?.hostId && resetStock(code, session.hostId, 20)}
+                  >
+                    重置庫存並倒數 20 秒
+                  </button>
+                  <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>
+                    在線 {room.playerCount} 人 · 已成交 {room.orderCount} 筆
+                  </span>
+                </div>
+                <SharePanel code={room.code} />
+              </>
             )}
           </div>
         </div>
+
+        {saleOpen && !needsJoin && (
+          <div className="mobile-buy-bar">
+            <button className="btn btn-orange btn-block" onClick={() => nav(`/r/${code}/queue`)}>
+              線上購票 · 立刻搶
+            </button>
+          </div>
+        )}
 
         <div className="tabs">
           <button className={tab === 'info' ? 'active' : ''} onClick={() => setTab('info')}>

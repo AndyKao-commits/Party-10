@@ -5,16 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n server,web -c green,cyan \"npm run dev:server\" \"npm run dev:web\"",
-    "dev:web": "vite",
+    "dev:web": "vite --host",
     "dev:server": "node server/index.js",
     "build": "tsc -b && vite build",
     "start": "NODE_ENV=production node server/index.js",
+    "party": "npm run build && npm start",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview --host"
   },
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.4",
@@ -25,6 +27,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^24.19.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@types/uuid": "^10.0.0",

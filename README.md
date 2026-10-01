@@ -12,6 +12,22 @@
 4. 流量控管 → 選票區 → 選張數 → 假付款 → 搶到顯示取票序號
 5. 活動頁「搶票戰況」即時看誰搶到
 
+## 手機派對怎麼開（推薦）
+
+同一 Wi‑Fi 下，用筆電當主機：
+
+```bash
+npm install
+npm run party
+```
+
+然後：
+1. 筆電瀏覽器開 `http://筆電的區網IP:3001`（例如 `http://192.168.1.23:3001`）
+2. 主辦開房間後，把頁面上的 **QR / 分享連結** 給朋友
+3. 大家用手機掃碼加入，一起搶
+
+> 手機不能開 `localhost`，一定要用區網 IP 或分享連結。
+
 ## 開發
 
 ```bash
@@ -19,14 +35,13 @@ npm install
 npm run dev
 ```
 
-- 前端：http://localhost:5173
-- API / WS：http://localhost:3001
+- 前端：http://localhost:5173（已 `--host`，區網可連）
+- API / WS：同網域 `/api`、`/ws`（Vite 代理）
 
-## 正式啟動（build 後）
+## 正式啟動（單埠，適合手機）
 
 ```bash
-npm run build
-npm start
+npm run party
 ```
 
-然後開 http://localhost:3001
+開 http://localhost:3001 或 `http://<區網IP>:3001`
