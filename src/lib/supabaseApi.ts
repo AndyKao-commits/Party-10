@@ -1,3 +1,4 @@
+import type { FakeEvent } from '../data/catalog'
 import type { Order, Room, TicketArea } from '../types'
 import { getSupabase } from './supabase'
 
@@ -148,22 +149,66 @@ export const supabaseApi = {
     await sb.rpc('ensure_featured_room')
     const { data, error } = await sb
       .from('rooms')
-      .select('code,title,subtitle,venue,date_text,sale_at,sale_open,is_featured')
+      .select('code,host_id,title,subtitle,venue,date_text,sale_at,sale_open,is_featured,max_per_order,fail_chance')
       .order('is_featured', { ascending: false })
       .order('sale_at', { ascending: true })
     if (error) throw new Error(error.message)
-    return {
-      events: (data || []).map((r) => ({
-        code: r.code as string,
-        title: r.title as string,
-        subtitle: (r.subtitle as string) || '',
-        venue: (r.venue as string) || '',
-        dateText: (r.date_text as string) || '',
-        saleAt: new Date(r.sale_at as string).getTime(),
-        saleOpen: Boolean(r.sale_open),
-        featured: Boolean(r.is_featured),
-      })),
-    }
+    const events = await Promise.all(
+      (data || []).map(async (r) => {
+        const { data: areas } = await sb.from('areas').select('total,remaining').eq('room_code', r.code)
+        const totalTickets = (areas || []).reduce((s, a) => s + Number(a.total || 0), 0)
+        const remaining = (areas || []).reduce((s, a) => s + Number(a.remaining || 0), 0)
+        return {
+          code: r.code as string,
+          hostId: r.host_id as string,
+          title: r.title as string,
+          subtitle: (r.subtitle as string) || '',
+          venue: (r.venue as string) || '',
+          dateText: (r.date_text as string) || '',
+          saleAt: new Date(r.sale_at as string).getTime(),
+          saleOpen: Boolean(r.sale_open),
+          featured: Boolean(r.is_featured),
+          maxPerOrder: Number(r.max_per_order || 2),
+          failChance: Number(r.fail_chance || 0),
+          totalTickets,
+          remaining,
+        }
+      }),
+    )
+    return { events }
+  },
+
+  async updateRoom(body: Record<string, unknown>) {
+    const sb = getSupabase()!
+    const { data, error } = await sb.rpc('update_room_event', {
+      p_code: String(body.code || ''),
+      p_host_id: body.hostId || null,
+      p_title: body.title ?? null,
+      p_subtitle: body.subtitle ?? null,
+      p_venue: body.venue ?? null,
+      p_date_text: body.dateText ?? null,
+      p_sale_at: body.saleAt ? new Date(String(body.saleAt)).toISOString() : null,
+      p_max_per_order: body.maxPerOrder ?? null,
+      p_fail_chance: body.failChance ?? null,
+      p_featured: body.featured ?? null,
+      p_total_tickets: body.totalTickets ?? null,
+    })
+    if (error) throw new Error(error.message)
+    const code = (data as { code?: string })?.code || String(body.code)
+    return { room: await loadRoom(code) }
+  },
+
+  async adminOpenSale(code: string) {
+    const sb = getSupabase()!
+    const c = code.toUpperCase()
+    const { data: room } = await sb.from('rooms').select('host_id').eq('code', c).single()
+    if (!room) throw new Error('找不到房間')
+    const { error } = await sb.rpc('open_room_sale', {
+      p_code: c,
+      p_host_id: room.host_id,
+    })
+    if (error) throw new Error(error.message)
+    return { room: await loadRoom(c) }
   },
 
   async createRoom(body: Record<string, unknown>) {
@@ -204,12 +249,26 @@ export const supabaseApi = {
     })
     if (error) throw new Error(error.message)
 
-    const defaults = [
-      { id: 'vip', name: 'VIP 搖滾區', price: 5800, total: 4, remaining: 4, color: '#e11d48' },
-      { id: 'a', name: '特 A 區', price: 4800, total: 8, remaining: 8, color: '#ea580c' },
-      { id: 'b', name: '特 B 區', price: 3800, total: 12, remaining: 12, color: '#ca8a04' },
-      { id: 'c', name: '二樓座席', price: 2800, total: 16, remaining: 16, color: '#16a34a' },
-    ]
+    const totalTickets = Math.max(0, Number(body.totalTickets || 0))
+    const ticketPrice = Math.max(1, Number(body.price || 2800))
+    const defaults =
+      totalTickets > 0
+        ? [
+            {
+              id: 'general',
+              name: '全票區',
+              price: ticketPrice,
+              total: totalTickets,
+              remaining: totalTickets,
+              color: '#16a34a',
+            },
+          ]
+        : [
+            { id: 'vip', name: 'VIP 搖滾區', price: 5800, total: 4, remaining: 4, color: '#e11d48' },
+            { id: 'a', name: '特 A 區', price: 4800, total: 8, remaining: 8, color: '#ea580c' },
+            { id: 'b', name: '特 B 區', price: 3800, total: 12, remaining: 12, color: '#ca8a04' },
+            { id: 'c', name: '二樓座席', price: 2800, total: 16, remaining: 16, color: '#16a34a' },
+          ]
     const { error: aErr } = await sb.from('areas').insert(defaults.map((a) => ({ ...a, room_code: code })))
     if (aErr) throw new Error(aErr.message)
     const { error: pErr } = await sb.from('players').insert({
@@ -284,5 +343,131 @@ export const supabaseApi = {
       alive = false
       void sb.removeChannel(channel)
     }
+  },
+
+  async listDecoys(): Promise<{ events: FakeEvent[] }> {
+    const sb = getSupabase()!
+    const { data, error } = await sb.from('decoy_events').select('*').order('sort_order', { ascending: true })
+    if (error) throw new Error(error.message)
+    if (!data || data.length === 0) {
+      const { FAKE_EVENTS } = await import('../data/catalog')
+      const rows = FAKE_EVENTS.map((e, i) => ({
+        id: e.id,
+        slug: e.slug,
+        title: e.title,
+        subtitle: e.subtitle,
+        category: e.category,
+        venue: e.venue,
+        date_text: e.dateText,
+        price_text: e.priceText,
+        status: e.status,
+        badge: e.badge || null,
+        gradient: e.gradient,
+        blurb: e.blurb,
+        image_url: e.imageUrl || '',
+        sort_order: i,
+      }))
+      const { error: insErr } = await sb.from('decoy_events').upsert(rows)
+      if (insErr) throw new Error(insErr.message)
+      return this.listDecoys()
+    }
+    return {
+      events: data.map((e): FakeEvent => ({
+        id: e.id as string,
+        slug: e.slug as string,
+        title: e.title as string,
+        subtitle: (e.subtitle as string) || '',
+        category: e.category as FakeEvent['category'],
+        venue: (e.venue as string) || '',
+        dateText: (e.date_text as string) || '',
+        priceText: (e.price_text as string) || '',
+        status: e.status as FakeEvent['status'],
+        badge: (e.badge as string) || undefined,
+        gradient: (e.gradient as string) || 'linear-gradient(160deg,#145c3f,#1a1a1a)',
+        blurb: (e.blurb as string) || '',
+        imageUrl: (e.image_url as string) || '',
+      })),
+    }
+  },
+
+  async upsertDecoy(event: Record<string, unknown>) {
+    const sb = getSupabase()!
+    const row = {
+      id: String(event.id),
+      slug: String(event.slug || event.id),
+      title: String(event.title || ''),
+      subtitle: String(event.subtitle || ''),
+      category: String(event.category || 'concert'),
+      venue: String(event.venue || ''),
+      date_text: String(event.dateText || ''),
+      price_text: String(event.priceText || ''),
+      status: String(event.status || 'onsale'),
+      badge: event.badge ? String(event.badge) : null,
+      gradient: String(event.gradient || 'linear-gradient(160deg,#145c3f,#1a1a1a)'),
+      blurb: String(event.blurb || ''),
+      image_url: String(event.imageUrl || ''),
+      sort_order: Number(event.sortOrder || 0),
+      updated_at: new Date().toISOString(),
+    }
+    const { error } = await sb.from('decoy_events').upsert(row)
+    if (error) throw new Error(error.message)
+    return this.listDecoys()
+  },
+
+  async listCards() {
+    const sb = getSupabase()!
+    const { data, error } = await sb.from('fake_cards').select('*').order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    return {
+      cards: (data || []).map((c) => ({
+        id: c.id as string,
+        label: (c.label as string) || '',
+        holder: (c.holder as string) || 'PARTY GUEST',
+        cardNumber: c.card_number as string,
+        expMonth: c.exp_month as string,
+        expYear: c.exp_year as string,
+        cvv: c.cvv as string,
+        createdAt: new Date(c.created_at as string).getTime(),
+      })),
+    }
+  },
+
+  async createCards(cards: Array<Record<string, string>>) {
+    const sb = getSupabase()!
+    const rows = cards.map((c) => ({
+      label: c.label || '',
+      holder: c.holder || 'PARTY GUEST',
+      card_number: c.cardNumber,
+      exp_month: c.expMonth,
+      exp_year: c.expYear,
+      cvv: c.cvv,
+    }))
+    const { error } = await sb.from('fake_cards').insert(rows)
+    if (error) throw new Error(error.message)
+    return this.listCards()
+  },
+
+  async clearCards() {
+    const sb = getSupabase()!
+    const { error } = await sb.from('fake_cards').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    if (error) throw new Error(error.message)
+    return this.listCards()
+  },
+
+  async validateCard(input: {
+    cardNumber: string
+    expMonth: string
+    expYear: string
+    cvv: string
+  }) {
+    const sb = getSupabase()!
+    const { data, error } = await sb.rpc('validate_fake_card', {
+      p_card_number: input.cardNumber,
+      p_exp_month: input.expMonth,
+      p_exp_year: input.expYear,
+      p_cvv: input.cvv,
+    })
+    if (error) throw new Error(error.message)
+    return { ok: Boolean(data) }
   },
 }

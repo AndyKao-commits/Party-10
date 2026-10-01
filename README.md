@@ -1,30 +1,23 @@
 # pbon 售票系統
 
-一打開就是仿 ibon 的售票站首頁。訪客逛活動、搶票；你從後台登入建立活動並設定開賣時間。
+一打開就是仿 ibon 的售票站。後台可建立／編輯活動、假活動、假信用卡。
 
-## 訪客
+## 你現在要做（Supabase）
 
-開網站首頁 → 熱門活動／搜尋 → 點可購票活動 → 線上購票。
+在 SQL Editor **再執行一次**：`supabase/schema-v2.sql`  
+（新增假活動表、假卡表、更新活動用的函式）
 
-## 後台
+Vercel 已有的環境變數不用動；部署後重新 Deploy。
 
-網址：`/admin`  
-預設密碼：`party2026`（可用環境變數 `VITE_ADMIN_PASSWORD` 改）
+## 後台 `/admin`（手機友善）
 
-可建立活動、設定開賣時間、設為主打、立刻開賣。
+密碼預設 `party2026`
 
-## Vercel + Supabase
+分三頁：
+1. **活動**：建立／編輯、總限量張數、每筆限購、開賣時間、立刻開賣
+2. **假活動**：改標題、文案、圖片網址（不會真的賣票）
+3. **假信用卡**：一次產生多張（卡號／月年／四碼 CVV），分享給現場的人；結帳要輸入正確才過
 
-1. Supabase SQL Editor 執行 `supabase/schema.sql`
-2. Vercel 環境變數：
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-   - `VITE_ADMIN_PASSWORD`（建議自訂）
-3. Deploy（Production 分支請用含最新程式的 `main`）
+## 訪客結帳
 
-## 本機 Wi‑Fi
-
-```bash
-npm install
-npm run party
-```
+必須使用主辦發給的假卡資料刷卡（假的，不會真扣款）。

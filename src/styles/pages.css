@@ -449,16 +449,64 @@
   display: none;
 }
 
-.admin-grid {
+.admin-mobile {
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 14px;
+  gap: 12px;
+  padding-bottom: 24px;
 }
 
-@media (max-width: 900px) {
-  .admin-grid {
-    grid-template-columns: 1fr;
-  }
+.admin-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  position: sticky;
+  top: 52px;
+  z-index: 40;
+  background: rgba(242, 244, 243, 0.92);
+  backdrop-filter: blur(8px);
+  padding: 6px 0;
+}
+
+.admin-tab {
+  appearance: none;
+  border: 1px solid var(--pbon-line);
+  background: #fff;
+  min-height: 44px;
+  font-weight: 800;
+  font-size: 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.admin-tab.active {
+  background: var(--pbon-green);
+  border-color: var(--pbon-green);
+  color: #fff;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.field-row .field {
+  margin-bottom: 14px;
+}
+
+.check-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 14px;
+  margin-bottom: 14px;
 }
 
 .admin-event-list {
@@ -475,9 +523,73 @@
   border-bottom: 1px dashed var(--pbon-line);
 }
 
+.decoy-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  border: 1px solid var(--pbon-line);
+}
+
+.decoy-preview {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.fake-card {
+  background: linear-gradient(135deg, #0b3d2c, #145c3f 55%, #1a1a1a);
+  color: #fff;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.fake-card__label {
+  font-size: 13px;
+  opacity: 0.9;
+  margin-bottom: 10px;
+}
+
+.fake-card__num {
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+
+.fake-card__meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 12px;
+  opacity: 0.95;
+}
+
+.fake-card .btn-ghost {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
 .footer-admin {
   opacity: 0.55;
   font-size: 12px;
+}
+
+textarea {
+  border: 1px solid var(--pbon-line);
+  border-radius: 2px;
+  padding: 10px 12px;
+  width: 100%;
+  font: inherit;
 }
 
 .catalog {

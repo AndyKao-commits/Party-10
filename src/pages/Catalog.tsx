@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { getRoom, listEvents, type LiveEvent } from '../api'
+import { getRoom, listDecoys, listEvents, type LiveEvent } from '../api'
 import { Shell } from '../components/Layout'
 import { useCountdown } from '../hooks/useCountdown'
 import {
@@ -35,16 +35,20 @@ export function CatalogHome() {
   const [cat, setCat] = useState('all')
   const [q, setQ] = useState('')
   const [live, setLive] = useState<LiveEvent[]>([])
+  const [decoySource, setDecoySource] = useState<FakeEvent[]>(FAKE_EVENTS)
   const nav = useNavigate()
 
   useEffect(() => {
     listEvents()
       .then((r) => setLive(r.events))
       .catch(() => setLive([]))
+    listDecoys()
+      .then((r) => setDecoySource(r.events.length ? r.events : FAKE_EVENTS))
+      .catch(() => setDecoySource(FAKE_EVENTS))
   }, [])
 
   const decoys = useMemo(() => {
-    return FAKE_EVENTS.filter((e) => {
+    return decoySource.filter((e) => {
       if (cat !== 'all' && e.category !== cat) return false
       if (!q.trim()) return true
       const s = q.trim().toLowerCase()
@@ -54,7 +58,7 @@ export function CatalogHome() {
         e.subtitle.toLowerCase().includes(s)
       )
     })
-  }, [cat, q])
+  }, [cat, q, decoySource])
 
   const liveFiltered = useMemo(() => {
     if (cat !== 'all' && cat !== 'party' && cat !== 'concert') return []
@@ -195,7 +199,12 @@ export function CatalogHome() {
           <div className="event-grid">
             {decoys.map((e) => (
               <Link key={e.id} to={`/ActivityInfo/Details/${e.slug}`} className="event-card">
-                <div className="event-card__art" style={{ background: e.gradient }}>
+                <div
+                  className="event-card__art"
+                  style={{
+                    background: e.imageUrl ? `center/cover url(${e.imageUrl})` : e.gradient,
+                  }}
+                >
                   {e.badge && <span className="event-card__badge">{e.badge}</span>}
                 </div>
                 <div className="event-card__body">
@@ -231,7 +240,7 @@ export function CatalogHome() {
 
 export function FakeActivityPage() {
   const { slug = '' } = useParams()
-  const event = getEventBySlug(slug)
+  const [event, setEvent] = useState<FakeEvent | undefined>(() => getEventBySlug(slug))
   const nav = useNavigate()
   const [msg, setMsg] = useState<string | null>(null)
   const [live, setLive] = useState<Room | null>(null)
@@ -250,6 +259,15 @@ export function FakeActivityPage() {
       })
       .finally(() => {
         if (!cancelled) setLoadingLive(false)
+      })
+    listDecoys()
+      .then((r) => {
+        if (cancelled) return
+        const found = r.events.find((e: FakeEvent) => e.slug === slug || e.id === slug)
+        setEvent(found || getEventBySlug(slug))
+      })
+      .catch(() => {
+        if (!cancelled) setEvent(getEventBySlug(slug))
       })
     return () => {
       cancelled = true
@@ -358,7 +376,14 @@ export function FakeActivityPage() {
     <Shell>
       <div className="page-card flash">
         <div className="hero-grid">
-          <div className="event-poster tall" style={{ background: event.gradient }}>
+          <div
+            className="event-poster tall"
+            style={{
+              background: event.imageUrl
+                ? `linear-gradient(180deg,rgba(0,0,0,.15),rgba(0,0,0,.75)), center/cover url(${event.imageUrl})`
+                : event.gradient,
+            }}
+          >
             <div className="poster__eyebrow">ACTIVITY</div>
             <h2 className="poster__title">{event.title}</h2>
             <div className="poster__sub">{event.subtitle}</div>

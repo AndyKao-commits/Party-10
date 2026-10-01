@@ -1,4 +1,6 @@
 import type { Room, Order } from './types'
+import type { FakeEvent } from './data/catalog'
+import type { FakeCard } from './lib/cards'
 import { isSupabaseMode } from './lib/supabase'
 import { supabaseApi } from './lib/supabaseApi'
 
@@ -6,6 +8,7 @@ const API = import.meta.env.VITE_API_URL || ''
 
 export type LiveEvent = {
   code: string
+  hostId?: string
   title: string
   subtitle: string
   venue: string
@@ -13,6 +16,10 @@ export type LiveEvent = {
   saleAt: number
   saleOpen: boolean
   featured: boolean
+  maxPerOrder?: number
+  failChance?: number
+  totalTickets?: number
+  remaining?: number
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -41,6 +48,19 @@ export function createRoom(body: Record<string, unknown>) {
     method: 'POST',
     body: JSON.stringify(body),
   })
+}
+
+export function updateRoom(body: Record<string, unknown>) {
+  if (isSupabaseMode) return supabaseApi.updateRoom(body)
+  return req<{ room: Room }>(`/api/rooms/${String(body.code)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function adminOpenSale(code: string) {
+  if (isSupabaseMode) return supabaseApi.adminOpenSale(code)
+  return req<{ room: Room }>(`/api/rooms/${code}/admin-open`, { method: 'POST', body: '{}' })
 }
 
 export function getFeatured() {
@@ -94,6 +114,44 @@ export function purchase(
     method: 'POST',
     body: JSON.stringify(body),
   })
+}
+
+export async function listDecoys() {
+  if (isSupabaseMode) return supabaseApi.listDecoys()
+  const { FAKE_EVENTS } = await import('./data/catalog')
+  return { events: FAKE_EVENTS as FakeEvent[] }
+}
+
+export function upsertDecoy(event: Record<string, unknown>) {
+  if (isSupabaseMode) return supabaseApi.upsertDecoy(event)
+  return Promise.reject(new Error('本機模式請接上 Supabase 後再編輯假活動'))
+}
+
+export function listCards() {
+  if (isSupabaseMode) return supabaseApi.listCards()
+  return Promise.resolve({ cards: [] as FakeCard[] })
+}
+
+export function createCards(cards: Array<Record<string, string>>) {
+  if (isSupabaseMode) return supabaseApi.createCards(cards)
+  return Promise.reject(new Error('本機模式請接上 Supabase 後再產生假卡'))
+}
+
+export function clearCards() {
+  if (isSupabaseMode) return supabaseApi.clearCards()
+  return Promise.resolve({ cards: [] as FakeCard[] })
+}
+
+export function validateCard(input: {
+  cardNumber: string
+  expMonth: string
+  expYear: string
+  cvv: string
+}) {
+  if (isSupabaseMode) return supabaseApi.validateCard(input)
+  // Local LAN: accept any 16-digit + 4 cvv for party convenience
+  const n = input.cardNumber.replace(/\s/g, '')
+  return Promise.resolve({ ok: n.length >= 15 && input.cvv.length >= 3 })
 }
 
 export function joinUrl(code: string) {

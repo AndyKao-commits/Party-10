@@ -1,22 +1,29 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { createRoom, listEvents, openSale, type LiveEvent } from '../api'
+import {
+  adminOpenSale,
+  createCards,
+  clearCards,
+  createRoom,
+  listCards,
+  listDecoys,
+  listEvents,
+  updateRoom,
+  upsertDecoy,
+  type LiveEvent,
+} from '../api'
 import { Shell } from '../components/Layout'
+import { formatCardForShare, generateFakeCard, type FakeCard } from '../lib/cards'
 import { saveSession } from '../hooks/useRoom'
+import type { FakeEvent } from '../data/catalog'
 
 const ADMIN_KEY = 'pbon-admin'
 const DEFAULT_PASS = 'party2026'
 
+type Tab = 'events' | 'decoys' | 'cards'
+
 function expectedPassword() {
   return (import.meta.env.VITE_ADMIN_PASSWORD as string | undefined) || DEFAULT_PASS
-}
-
-export function isAdminLoggedIn() {
-  try {
-    return localStorage.getItem(ADMIN_KEY) === '1'
-  } catch {
-    return false
-  }
 }
 
 function setAdminLoggedIn(on: boolean) {
@@ -24,37 +31,61 @@ function setAdminLoggedIn(on: boolean) {
   else localStorage.removeItem(ADMIN_KEY)
 }
 
+function isAdminLoggedIn() {
+  try {
+    return localStorage.getItem(ADMIN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 function toLocalInputValue(d: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+const emptyEventForm = () => ({
+  code: '',
+  hostId: '',
+  title: 'PARTY HOUSE 2026 小派對 WORLD TOUR',
+  subtitle: '＜FUN ONLY＞ in LIVING ROOM',
+  venue: '你家客廳・派對主舞台',
+  dateText: '今晚開演',
+  saleAt: toLocalInputValue(new Date(Date.now() + 10 * 60 * 1000)),
+  maxPerOrder: 2,
+  failChance: 15,
+  featured: true,
+  totalTickets: 20,
+  price: 2800,
+})
+
 export function AdminPage() {
   const [authed, setAuthed] = useState(isAdminLoggedIn)
   const [password, setPassword] = useState('')
   const [loginError, setLoginError] = useState<string | null>(null)
+  const [tab, setTab] = useState<Tab>('events')
   const [events, setEvents] = useState<LiveEvent[]>([])
+  const [decoys, setDecoys] = useState<FakeEvent[]>([])
+  const [cards, setCards] = useState<FakeCard[]>([])
+  const [form, setForm] = useState(emptyEventForm)
+  const [editing, setEditing] = useState(false)
+  const [decoyForm, setDecoyForm] = useState<FakeEvent | null>(null)
+  const [cardCount, setCardCount] = useState(15)
+  const [cardPrefix, setCardPrefix] = useState('嘉賓')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const nav = useNavigate()
 
-  const [title, setTitle] = useState('PARTY HOUSE 2026 小派對 WORLD TOUR')
-  const [subtitle, setSubtitle] = useState('＜FUN ONLY＞ in LIVING ROOM')
-  const [venue, setVenue] = useState('你家客廳・派對主舞台')
-  const [dateText, setDateText] = useState('今晚開演')
-  const [saleAt, setSaleAt] = useState(() => toLocalInputValue(new Date(Date.now() + 10 * 60 * 1000)))
-  const [maxPerOrder, setMaxPerOrder] = useState(2)
-  const [failChance, setFailChance] = useState(15)
-  const [featured, setFeatured] = useState(true)
-
   const refresh = async () => {
-    try {
-      const { events: list } = await listEvents()
-      setEvents(list)
-    } catch {
-      setEvents([])
-    }
+    const [ev, de, ca] = await Promise.all([
+      listEvents().catch(() => ({ events: [] as LiveEvent[] })),
+      listDecoys().catch(() => ({ events: [] as FakeEvent[] })),
+      listCards().catch(() => ({ cards: [] as FakeCard[] })),
+    ])
+    setEvents(ev.events)
+    setDecoys(de.events)
+    setCards(ca.cards)
   }
 
   useEffect(() => {
@@ -67,45 +98,84 @@ export function AdminPage() {
       setAdminLoggedIn(true)
       setAuthed(true)
       setLoginError(null)
-    } else {
-      setLoginError('密碼錯誤')
-    }
+    } else setLoginError('密碼錯誤')
   }
 
-  const onCreate = async (e: FormEvent) => {
+  const onSaveEvent = async (e: FormEvent) => {
     e.preventDefault()
     setBusy(true)
     setError(null)
     setMsg(null)
     try {
-      const saleDate = new Date(saleAt)
+      const saleDate = new Date(form.saleAt)
       if (Number.isNaN(saleDate.getTime())) throw new Error('開賣時間格式不正確')
-      const { hostId, room } = await createRoom({
-        hostName: '主辦',
-        title,
-        subtitle,
-        venue,
-        dateText,
-        saleAt: saleDate.toISOString(),
-        maxPerOrder,
-        failChance: failChance / 100,
-        queueDelayMs: 2200,
-        featured,
-      })
-      saveSession({
-        code: room.code,
-        playerId: hostId,
-        nickname: '主辦',
-        isHost: true,
-        hostId,
-      })
-      setMsg(`已建立活動 ${room.code}`)
+      if (editing && form.code) {
+        await updateRoom({
+          code: form.code,
+          hostId: form.hostId || null,
+          title: form.title,
+          subtitle: form.subtitle,
+          venue: form.venue,
+          dateText: form.dateText,
+          saleAt: saleDate.toISOString(),
+          maxPerOrder: form.maxPerOrder,
+          failChance: form.failChance / 100,
+          featured: form.featured,
+          totalTickets: form.totalTickets,
+        })
+        setMsg(`已更新 ${form.code}`)
+      } else {
+        const { hostId, room } = await createRoom({
+          hostName: '主辦',
+          title: form.title,
+          subtitle: form.subtitle,
+          venue: form.venue,
+          dateText: form.dateText,
+          saleAt: saleDate.toISOString(),
+          maxPerOrder: form.maxPerOrder,
+          failChance: form.failChance / 100,
+          queueDelayMs: 2200,
+          featured: form.featured,
+          totalTickets: form.totalTickets,
+          price: form.price,
+        })
+        saveSession({
+          code: room.code,
+          playerId: hostId,
+          nickname: '主辦',
+          isHost: true,
+          hostId,
+        })
+        setMsg(`已建立 ${room.code}`)
+      }
+      setEditing(false)
+      setForm(emptyEventForm())
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : '建立失敗')
+      setError(err instanceof Error ? err.message : '儲存失敗')
     } finally {
       setBusy(false)
     }
+  }
+
+  const startEdit = (ev: LiveEvent) => {
+    setEditing(true)
+    setForm({
+      code: ev.code,
+      hostId: ev.hostId || '',
+      title: ev.title,
+      subtitle: ev.subtitle,
+      venue: ev.venue,
+      dateText: ev.dateText,
+      saleAt: toLocalInputValue(new Date(ev.saleAt)),
+      maxPerOrder: ev.maxPerOrder || 2,
+      failChance: Math.round((ev.failChance || 0.15) * 100),
+      featured: ev.featured,
+      totalTickets: ev.totalTickets || 20,
+      price: 2800,
+    })
+    setTab('events')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   if (!authed) {
@@ -113,7 +183,6 @@ export function AdminPage() {
       <Shell>
         <form className="page-card host-panel flash" onSubmit={onLogin}>
           <h2 style={{ marginTop: 0 }}>後台登入</h2>
-          <p className="muted">建立活動、設定開賣時間。一般訪客看不到這頁入口說明。</p>
           <div className="field">
             <label>密碼</label>
             <input
@@ -133,151 +202,444 @@ export function AdminPage() {
 
   return (
     <Shell>
-      <div className="admin-grid flash">
-        <form className="page-card host-panel" onSubmit={onCreate}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-            <h2 style={{ margin: 0 }}>建立活動</h2>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => {
-                setAdminLoggedIn(false)
-                setAuthed(false)
-              }}
-            >
-              登出
-            </button>
-          </div>
-          <p className="muted">這裡建立的活動會出現在首頁，訪客可進去搶票。</p>
-
-          <div className="field">
-            <label>活動名稱</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} required />
-          </div>
-          <div className="field">
-            <label>副標</label>
-            <input value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>地點</label>
-            <input value={venue} onChange={(e) => setVenue(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>日期文案（顯示用）</label>
-            <input value={dateText} onChange={(e) => setDateText(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>開賣時間</label>
-            <input
-              type="datetime-local"
-              value={saleAt}
-              onChange={(e) => setSaleAt(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label>每筆限購</label>
-            <input
-              type="number"
-              min={1}
-              max={4}
-              value={maxPerOrder}
-              onChange={(e) => setMaxPerOrder(Number(e.target.value))}
-            />
-          </div>
-          <div className="field">
-            <label>假忙線機率（%）</label>
-            <input
-              type="number"
-              min={0}
-              max={60}
-              value={failChance}
-              onChange={(e) => setFailChance(Number(e.target.value))}
-            />
-          </div>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, fontSize: 14 }}>
-            <input type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} />
-            設為首頁主打
-          </label>
-
-          {error && <div className="error-box">{error}</div>}
-          {msg && <div className="status-pill" style={{ marginBottom: 12 }}>{msg}</div>}
-          <button className="btn btn-orange btn-block" disabled={busy}>
-            {busy ? '建立中…' : '建立並上架'}
+      <div className="admin-mobile flash">
+        <div className="admin-top">
+          <h2 style={{ margin: 0 }}>後台</h2>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              setAdminLoggedIn(false)
+              setAuthed(false)
+            }}
+          >
+            登出
           </button>
-        </form>
+        </div>
 
-        <section className="page-card notice-box">
-          <h2 style={{ marginTop: 0, fontSize: 18 }}>已上架活動</h2>
-          {events.length === 0 ? (
-            <p className="muted">尚無活動。建立一筆後首頁就會顯示。</p>
-          ) : (
-            <div className="admin-event-list">
-              {events.map((ev) => (
-                <AdminEventRow
-                  key={ev.code}
-                  ev={ev}
-                  onOpen={async () => {
-                    const sessionRaw = localStorage.getItem('pbon-session')
-                    let hostId = ''
-                    try {
-                      const s = sessionRaw ? JSON.parse(sessionRaw) : null
-                      if (s?.code === ev.code && s.hostId) hostId = s.hostId
-                    } catch {
-                      /* ignore */
-                    }
-                    if (!hostId) {
-                      setError('請用建立該場的瀏覽器開賣，或重新建立一場')
-                      return
-                    }
-                    await openSale(ev.code, hostId)
-                    await refresh()
-                  }}
-                  onEnter={() => nav(`/r/${ev.code}`)}
+        <div className="admin-tabs">
+          {(
+            [
+              ['events', '活動'],
+              ['decoys', '假活動'],
+              ['cards', '假信用卡'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`admin-tab ${tab === id ? 'active' : ''}`}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {error && <div className="error-box">{error}</div>}
+        {msg && <div className="status-pill" style={{ margin: '8px 0' }}>{msg}</div>}
+
+        {tab === 'events' && (
+          <>
+            <form className="page-card host-panel" onSubmit={onSaveEvent}>
+              <h3 style={{ marginTop: 0 }}>{editing ? `編輯 ${form.code}` : '建立活動'}</h3>
+              <div className="field">
+                <label>活動名稱</label>
+                <input
+                  value={form.title}
+                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                  required
                 />
+              </div>
+              <div className="field">
+                <label>副標</label>
+                <input
+                  value={form.subtitle}
+                  onChange={(e) => setForm((f) => ({ ...f, subtitle: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label>地點</label>
+                <input
+                  value={form.venue}
+                  onChange={(e) => setForm((f) => ({ ...f, venue: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label>日期文案</label>
+                <input
+                  value={form.dateText}
+                  onChange={(e) => setForm((f) => ({ ...f, dateText: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label>開賣時間</label>
+                <input
+                  type="datetime-local"
+                  value={form.saleAt}
+                  onChange={(e) => setForm((f) => ({ ...f, saleAt: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="field-row">
+                <div className="field">
+                  <label>總限量張數</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={form.totalTickets}
+                    onChange={(e) => setForm((f) => ({ ...f, totalTickets: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="field">
+                  <label>每筆限購</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={4}
+                    value={form.maxPerOrder}
+                    onChange={(e) => setForm((f) => ({ ...f, maxPerOrder: Number(e.target.value) }))}
+                  />
+                </div>
+              </div>
+              <div className="field-row">
+                <div className="field">
+                  <label>票價</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.price}
+                    onChange={(e) => setForm((f) => ({ ...f, price: Number(e.target.value) }))}
+                    disabled={editing}
+                  />
+                </div>
+                <div className="field">
+                  <label>假忙線%</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={form.failChance}
+                    onChange={(e) => setForm((f) => ({ ...f, failChance: Number(e.target.value) }))}
+                  />
+                </div>
+              </div>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={form.featured}
+                  onChange={(e) => setForm((f) => ({ ...f, featured: e.target.checked }))}
+                />
+                設為首頁主打
+              </label>
+              <div className="share-actions">
+                {editing && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => {
+                      setEditing(false)
+                      setForm(emptyEventForm())
+                    }}
+                  >
+                    取消編輯
+                  </button>
+                )}
+                <button className="btn btn-orange" style={{ flex: 1 }} disabled={busy}>
+                  {busy ? '儲存中…' : editing ? '更新活動' : '建立並上架'}
+                </button>
+              </div>
+            </form>
+
+            <section className="page-card notice-box">
+              <h3 style={{ marginTop: 0 }}>已上架活動</h3>
+              <div className="admin-event-list">
+                {events.map((ev) => (
+                  <div key={ev.code} className="admin-event-row">
+                    <div>
+                      <strong>
+                        {ev.title} {ev.featured ? '★' : ''}
+                      </strong>
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {ev.code} · 剩 {ev.remaining ?? '?'} / {ev.totalTickets ?? '?'} ·{' '}
+                        {new Date(ev.saleAt).toLocaleString('zh-TW')}
+                      </div>
+                    </div>
+                    <div className="share-actions">
+                      <button type="button" className="btn btn-ghost" onClick={() => startEdit(ev)}>
+                        編輯
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-green"
+                        onClick={async () => {
+                          try {
+                            await adminOpenSale(ev.code)
+                            setMsg(`${ev.code} 已開賣`)
+                            await refresh()
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : '開賣失敗')
+                          }
+                        }}
+                      >
+                        開賣
+                      </button>
+                      <button type="button" className="btn btn-ghost" onClick={() => nav(`/r/${ev.code}`)}>
+                        進入
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+
+        {tab === 'decoys' && (
+          <>
+            <section className="page-card notice-box">
+              <h3 style={{ marginTop: 0 }}>假活動列表</h3>
+              <p className="muted">這些不會真的賣票，可改標題／文案／圖片網址，避免跟真活動撞臉。</p>
+              <div className="admin-event-list">
+                {decoys.map((d) => (
+                  <div key={d.id} className="admin-event-row">
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      {d.imageUrl ? (
+                        <img src={d.imageUrl} alt="" className="decoy-thumb" />
+                      ) : (
+                        <div className="decoy-thumb" style={{ background: d.gradient }} />
+                      )}
+                      <div>
+                        <strong>{d.title}</strong>
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          {d.slug} · {d.status}
+                        </div>
+                      </div>
+                    </div>
+                    <button type="button" className="btn btn-ghost" onClick={() => setDecoyForm({ ...d })}>
+                      編輯
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {decoyForm && (
+              <form
+                className="page-card host-panel"
+                onSubmit={async (e) => {
+                  e.preventDefault()
+                  setBusy(true)
+                  setError(null)
+                  try {
+                    await upsertDecoy({ ...decoyForm })
+                    setMsg('假活動已更新')
+                    setDecoyForm(null)
+                    await refresh()
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : '更新失敗')
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              >
+                <h3 style={{ marginTop: 0 }}>編輯假活動</h3>
+                <div className="field">
+                  <label>標題</label>
+                  <input
+                    value={decoyForm.title}
+                    onChange={(e) => setDecoyForm({ ...decoyForm, title: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="field">
+                  <label>副標</label>
+                  <input
+                    value={decoyForm.subtitle}
+                    onChange={(e) => setDecoyForm({ ...decoyForm, subtitle: e.target.value })}
+                  />
+                </div>
+                <div className="field">
+                  <label>地點</label>
+                  <input
+                    value={decoyForm.venue}
+                    onChange={(e) => setDecoyForm({ ...decoyForm, venue: e.target.value })}
+                  />
+                </div>
+                <div className="field">
+                  <label>日期文案</label>
+                  <input
+                    value={decoyForm.dateText}
+                    onChange={(e) => setDecoyForm({ ...decoyForm, dateText: e.target.value })}
+                  />
+                </div>
+                <div className="field">
+                  <label>票價文案</label>
+                  <input
+                    value={decoyForm.priceText}
+                    onChange={(e) => setDecoyForm({ ...decoyForm, priceText: e.target.value })}
+                  />
+                </div>
+                <div className="field">
+                  <label>狀態</label>
+                  <select
+                    value={decoyForm.status}
+                    onChange={(e) =>
+                      setDecoyForm({
+                        ...decoyForm,
+                        status: e.target.value as FakeEvent['status'],
+                      })
+                    }
+                  >
+                    <option value="coming">即將開賣</option>
+                    <option value="onsale">販售中</option>
+                    <option value="hot">熱賣中</option>
+                    <option value="ended">已結束</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>介紹文</label>
+                  <textarea
+                    rows={3}
+                    value={decoyForm.blurb}
+                    onChange={(e) => setDecoyForm({ ...decoyForm, blurb: e.target.value })}
+                  />
+                </div>
+                <div className="field">
+                  <label>圖片網址（可貼 Imgur / 雲端圖床）</label>
+                  <input
+                    value={decoyForm.imageUrl || ''}
+                    onChange={(e) => setDecoyForm({ ...decoyForm, imageUrl: e.target.value })}
+                    placeholder="https://..."
+                  />
+                </div>
+                {decoyForm.imageUrl && (
+                  <img src={decoyForm.imageUrl} alt="preview" className="decoy-preview" />
+                )}
+                <div className="share-actions">
+                  <button type="button" className="btn btn-ghost" onClick={() => setDecoyForm(null)}>
+                    取消
+                  </button>
+                  <button className="btn btn-orange" style={{ flex: 1 }} disabled={busy}>
+                    儲存假活動
+                  </button>
+                </div>
+              </form>
+            )}
+          </>
+        )}
+
+        {tab === 'cards' && (
+          <section className="page-card host-panel">
+            <h3 style={{ marginTop: 0 }}>假信用卡</h3>
+            <p className="muted">
+              隨機產生卡號、有效月年、四碼安全碼。分給現場的人，結帳時必須輸入正確才過。
+            </p>
+            <div className="field-row">
+              <div className="field">
+                <label>張數</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={cardCount}
+                  onChange={(e) => setCardCount(Number(e.target.value))}
+                />
+              </div>
+              <div className="field">
+                <label>名牌前綴</label>
+                <input value={cardPrefix} onChange={(e) => setCardPrefix(e.target.value)} />
+              </div>
+            </div>
+            <div className="share-actions" style={{ marginBottom: 14 }}>
+              <button
+                type="button"
+                className="btn btn-orange"
+                style={{ flex: 1 }}
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true)
+                  setError(null)
+                  try {
+                    const batch = Array.from({ length: cardCount }, (_, i) =>
+                      generateFakeCard(`${cardPrefix}${i + 1}`),
+                    )
+                    const res = await createCards(
+                      batch.map((c) => ({
+                        label: c.label,
+                        holder: c.holder,
+                        cardNumber: c.cardNumber,
+                        expMonth: c.expMonth,
+                        expYear: c.expYear,
+                        cvv: c.cvv,
+                      })),
+                    )
+                    setCards(res.cards)
+                    setMsg(`已產生 ${batch.length} 張假卡`)
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : '產生失敗（請先執行 schema-v2.sql）')
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              >
+                產生假卡
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={async () => {
+                  if (!confirm('清除全部假卡？')) return
+                  const res = await clearCards()
+                  setCards(res.cards)
+                  setMsg('已清除假卡')
+                }}
+              >
+                清空
+              </button>
+            </div>
+
+            <div className="card-list">
+              {cards.map((c) => (
+                <article key={c.id} className="fake-card">
+                  <div className="fake-card__label">{c.label || c.holder}</div>
+                  <div className="fake-card__num">{c.cardNumber}</div>
+                  <div className="fake-card__meta">
+                    <span>
+                      {c.expMonth}/{c.expYear}
+                    </span>
+                    <span>CVV {c.cvv}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-block"
+                    onClick={async () => {
+                      const text = formatCardForShare(c)
+                      try {
+                        if (navigator.share) await navigator.share({ text, title: '派對假信用卡' })
+                        else {
+                          await navigator.clipboard.writeText(text)
+                          setMsg('已複製假卡資訊')
+                        }
+                      } catch {
+                        await navigator.clipboard.writeText(text)
+                        setMsg('已複製假卡資訊')
+                      }
+                    }}
+                  >
+                    分享／複製給這個人
+                  </button>
+                </article>
               ))}
             </div>
-          )}
-          <p style={{ marginTop: 16 }}>
-            <Link to="/">回售票首頁預覽</Link>
-          </p>
-        </section>
+          </section>
+        )}
+
+        <p style={{ textAlign: 'center' }}>
+          <Link to="/">回售票首頁</Link>
+        </p>
       </div>
     </Shell>
-  )
-}
-
-function AdminEventRow({
-  ev,
-  onOpen,
-  onEnter,
-}: {
-  ev: LiveEvent
-  onOpen: () => void
-  onEnter: () => void
-}) {
-  const when = useMemo(() => new Date(ev.saleAt).toLocaleString('zh-TW'), [ev.saleAt])
-  const open = ev.saleOpen || Date.now() >= ev.saleAt
-  return (
-    <div className="admin-event-row">
-      <div>
-        <strong>
-          {ev.title} {ev.featured ? '★' : ''}
-        </strong>
-        <div className="muted" style={{ fontSize: 12 }}>
-          {ev.code} · 開賣 {when} · {open ? '熱賣中' : '尚未開賣'}
-        </div>
-      </div>
-      <div className="share-actions">
-        {!open && (
-          <button type="button" className="btn btn-green" onClick={onOpen}>
-            立刻開賣
-          </button>
-        )}
-        <button type="button" className="btn btn-ghost" onClick={onEnter}>
-          進入場次
-        </button>
-      </div>
-    </div>
   )
 }
