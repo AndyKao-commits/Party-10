@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { JoinPage } from './pages/Home'
 import { ActivityPage } from './pages/Activity'
+import { PrankPage } from './pages/Prank'
 import { AdminPage } from './pages/Admin'
 import { AreaPage, QtyPage, QueuePage } from './pages/BuyFlow'
 import { CheckoutPage, SuccessPage } from './pages/Checkout'
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/search" element={<SearchPage />} />
         <Route path="/news" element={<NewsPage />} />
         <Route path="/orders" element={<OrdersPage />} />
+        <Route path="/prank" element={<PrankPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/host" element={<Navigate to="/admin" replace />} />
         <Route path="/join" element={<JoinPage />} />

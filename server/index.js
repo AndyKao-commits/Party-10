@@ -198,6 +198,10 @@ app.get('/api/featured', (_req, res) => {
   res.json({ room: publicRoom(room), hostHint: 'POST /api/featured/claim-host' })
 })
 
+app.get('/api/admin/orders', (_req,res) => {
+  res.json({orders:[...rooms.values()].flatMap(r => r.orders.map(o => ({...o,eventCode:r.code,eventTitle:r.title}))).sort((a,b) => b.createdAt-a.createdAt)})
+})
+
 app.get('/api/events', (_req, res) => {
   ensureFeaturedRoom()
   const events = [...rooms.values()]

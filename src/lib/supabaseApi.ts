@@ -130,6 +130,16 @@ function rpcError(err: { message?: string; code?: string }) {
 }
 
 export const supabaseApi = {
+  async listPurchaseRecords() {
+    const sb=getSupabase()!
+    const [{data: orders,error},{data: rooms,error: roomError}] = await Promise.all([
+      sb.from('orders').select('id,room_code,nickname,area_name,qty,seats,code,created_at,unit_price').order('created_at',{ascending:false}),
+      sb.from('rooms').select('code,title'),
+    ])
+    if(error || roomError) throw new Error(error?.message || roomError?.message)
+    const titles=new Map((rooms || []).map(r => [r.code,r.title]))
+    return {orders:(orders || []).map(o => ({...mapOrders([o as OrderRow])[0],eventCode:o.room_code as string,eventTitle:String(titles.get(o.room_code) || o.room_code)}))}
+  },
   async getFeatured() {
     const sb = getSupabase()!
     const { data: featured, error: fErr } = await sb

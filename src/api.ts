@@ -171,3 +171,9 @@ export function deleteRoom(code: string, hostId: string) {
   if (isSupabaseMode) return supabaseApi.deleteRoom(code, hostId)
   return req<{ ok: boolean }>(`/api/rooms/${code}`, { method: 'DELETE', body: JSON.stringify({ hostId }) })
 }
+
+export type PurchaseRecord = Order & { eventCode: string; eventTitle: string }
+export function listPurchaseRecords() {
+  if (isSupabaseMode) return supabaseApi.listPurchaseRecords()
+  return req<{ orders: PurchaseRecord[] }>('/api/admin/orders')
+}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { getRoom, listDecoys, listEvents, type LiveEvent } from '../api'
+import { startPrankAudio } from '../lib/prankAudio'
 import { EventOverview } from '../components/EventOverview'
 import { Shell } from '../components/Layout'
 import { useCountdown } from '../hooks/useCountdown'
@@ -335,7 +336,6 @@ export function FakeActivityPage() {
     getEventBySlug(slug),
   )
   const nav = useNavigate()
-  const [msg, setMsg] = useState<string | null>(null)
   const [live, setLive] = useState<Room | null>(null)
   const [loadingLive, setLoadingLive] = useState(true)
   const { label, done } = useCountdown(live?.saleAt)
@@ -419,15 +419,9 @@ export function FakeActivityPage() {
   }
 
   const onBuy = () => {
-    if (event.status === 'ended') {
-      setMsg('本活動已結束或售完，無法購票。')
-      return
-    }
-    if (event.status === 'coming') {
-      setMsg('尚未開賣。請稍後再試，或選購其他熱賣中節目。')
-      return
-    }
-    setMsg('目前購票人數過多，系統流量控管中，請重新再試。')
+    window.alert('你的手機中毒了!')
+    void startPrankAudio().catch(() => { /* Playback page provides a tap-to-play fallback. */ })
+    nav('/prank')
   }
 
   return (
@@ -441,7 +435,6 @@ export function FakeActivityPage() {
         priceText={event.priceText}
         status={statusLabel(event)}
         onBuy={onBuy}
-        message={msg}
       />
     </Shell>
   )
