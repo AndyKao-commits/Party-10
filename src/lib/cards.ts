@@ -11,19 +11,38 @@ export type FakeCard = {
 
 function randDigits(n: number) {
   let s = ''
-  for (let i = 0; i < n; i++) s += Math.floor(Math.random() * 10)
+  const values = new Uint8Array(n)
+  if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(values)
+  else for (let i = 0; i < n; i++) values[i] = Math.floor(Math.random() * 256)
+  for (let i = 0; i < n; i++) s += values[i] % 10
   return s
 }
 
-/** Generate a display card number (groups of 4). */
+function luhnValid(value: string) {
+  let sum = 0
+  let double = false
+  for (let i = value.length - 1; i >= 0; i--) {
+    let digit = Number(value[i])
+    if (double) {
+      digit *= 2
+      if (digit > 9) digit -= 9
+    }
+    sum += digit
+    double = !double
+  }
+  return sum % 10 === 0
+}
+
+/** Generate realistic-looking display data that is deliberately not a valid payment card. */
 export function generateFakeCard(label = ''): Omit<FakeCard, 'id' | 'createdAt'> {
-  // Start with 4 (Visa-like) for recognizability; not a real issuer BIN.
-  const raw = `4${randDigits(15)}`
+  const prefix = Math.random() < 0.5 ? '4' : '5'
+  let raw = `${prefix}${randDigits(15)}`
+  if (luhnValid(raw)) raw = `${raw.slice(0, -1)}${(Number(raw.at(-1)) + 1) % 10}`
   const cardNumber = raw.replace(/(\d{4})(?=\d)/g, '$1 ').trim()
   const now = new Date()
   const expYear = String((now.getFullYear() + 2 + Math.floor(Math.random() * 3)) % 100).padStart(2, '0')
   const expMonth = String(1 + Math.floor(Math.random() * 12)).padStart(2, '0')
-  const cvv = randDigits(4) // party rule: 4-digit security code
+  const cvv = randDigits(3)
   return {
     label,
     holder: label ? label.toUpperCase() : 'PARTY GUEST',
