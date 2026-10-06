@@ -1,4 +1,4 @@
-import type { Room, Order, TicketArea } from './types'
+import type { Room, Order, TicketArea, PartyMember, SiteStatus } from './types'
 import type { FakeEvent } from './data/catalog'
 import type { FakeCard } from './lib/cards'
 import { isSupabaseMode } from './lib/supabase'
@@ -109,7 +109,7 @@ export function resetStock(code: string, hostId: string, saleInSec = 20) {
 
 export function purchase(
   code: string,
-  body: { playerId: string; areaId: string; qty: number; nickname: string; seatIds?: string[] },
+  body: { playerId: string; areaId: string; qty: number; nickname: string; seatIds?: string[]; memberToken?: string },
 ) {
   if (isSupabaseMode) return supabaseApi.purchase(code, body)
   return req<{ order: Order; room: Room }>(`/api/rooms/${code}/purchase`, {
@@ -117,6 +117,20 @@ export function purchase(
     body: JSON.stringify(body),
   })
 }
+
+export function getSiteStatus(staffToken = '', memberToken = '') {
+  if (isSupabaseMode) return supabaseApi.getSiteStatus(staffToken, memberToken)
+  return Promise.resolve({siteOpen:true,effectiveOpen:true,registrationOpen:true,purchaseOpen:true,closedMessage:'',staffAccess:false,member:null} as SiteStatus)
+}
+export function verifyStaffAccess(password: string) { return isSupabaseMode ? supabaseApi.verifyStaffAccess(password) : Promise.resolve({token:'local'}) }
+export function registerMember(name: string, phone: string, account: string) { return isSupabaseMode ? supabaseApi.registerMember(name,phone,account) : Promise.reject(new Error('本機模式未啟用註冊')) }
+export function loginMember(account: string, phone: string) { return isSupabaseMode ? supabaseApi.loginMember(account,phone) : Promise.reject(new Error('本機模式未啟用登入')) }
+export function logoutMember(token: string) { return isSupabaseMode ? supabaseApi.logoutMember(token) : Promise.resolve() }
+export function adminGetSiteSettings(adminKey: string) { return supabaseApi.adminGetSiteSettings(adminKey) }
+export function adminUpdateSiteSettings(adminKey: string, settings: Record<string, unknown>) { return supabaseApi.adminUpdateSiteSettings(adminKey,settings) }
+export function adminListMembers(adminKey: string): Promise<{members:PartyMember[]}> { return supabaseApi.adminListMembers(adminKey) }
+export function adminDeleteMember(adminKey: string, memberId: string) { return supabaseApi.adminDeleteMember(adminKey,memberId) }
+export function adminClearMembers(adminKey: string, mode: 'unpurchased'|'members'|'full') { return supabaseApi.adminClearMembers(adminKey,mode) }
 
 export async function listDecoys() {
   if (isSupabaseMode) return supabaseApi.listDecoys()

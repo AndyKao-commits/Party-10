@@ -13,6 +13,7 @@ import {
   type FakeEvent,
 } from '../data/catalog'
 import type { Room } from '../types'
+import { useAccess } from '../lib/access'
 
 function statusLabel(e: FakeEvent) {
   if (e.status === 'ended') return '已結束'
@@ -336,6 +337,7 @@ export function FakeActivityPage() {
     getEventBySlug(slug),
   )
   const nav = useNavigate()
+  const {status}=useAccess()
   const [live, setLive] = useState<Room | null>(null)
   const [loadingLive, setLoadingLive] = useState(true)
   const { label, done } = useCountdown(live?.saleAt)
@@ -419,6 +421,7 @@ export function FakeActivityPage() {
   }
 
   const onBuy = () => {
+    if(!status?.member){nav(`/account?next=${encodeURIComponent(`/ActivityInfo/Details/${slug}`)}`);return}
     window.alert('你的手機中毒了!')
     void startPrankAudio().catch(() => { /* Playback page provides a tap-to-play fallback. */ })
     nav('/prank')

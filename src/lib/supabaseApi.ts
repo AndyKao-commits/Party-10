@@ -1,5 +1,5 @@
 import type { FakeEvent } from '../data/catalog'
-import type { Order, Room, TicketArea, Seat } from '../types'
+import type { Order, Room, TicketArea, Seat, PartyMember, SiteStatus } from '../types'
 import { getSupabase } from './supabase'
 
 function mapDecoyRow(e: Record<string, unknown>): FakeEvent {
@@ -130,6 +130,26 @@ function rpcError(err: { message?: string; code?: string }) {
 }
 
 export const supabaseApi = {
+  async getSiteStatus(staffToken = '', memberToken = '') {
+    const {data,error}=await getSupabase()!.rpc('get_site_status',{p_staff_token:staffToken||null,p_member_token:memberToken||null})
+    if(error) throw new Error(error.message)
+    return data as SiteStatus
+  },
+  async verifyStaffAccess(password:string) {
+    const {data,error}=await getSupabase()!.rpc('verify_staff_access',{p_password:password});if(error) throw new Error(error.message);return data as {token:string;expiresAt:number}
+  },
+  async registerMember(name:string,phone:string,account:string) {
+    const {data,error}=await getSupabase()!.rpc('register_party_member',{p_name:name,p_phone:phone,p_account:account});if(error) throw new Error(error.message);return data as {token:string;member:PartyMember}
+  },
+  async loginMember(account:string,phone:string) {
+    const {data,error}=await getSupabase()!.rpc('login_party_member',{p_account:account,p_phone:phone});if(error) throw new Error(error.message);return data as {token:string;member:PartyMember}
+  },
+  async logoutMember(token:string) { const {error}=await getSupabase()!.rpc('logout_party_member',{p_token:token});if(error) throw new Error(error.message) },
+  async adminGetSiteSettings(adminKey:string) { const {data,error}=await getSupabase()!.rpc('admin_get_site_settings',{p_admin_key:adminKey});if(error) throw new Error(error.message);return data as SiteStatus },
+  async adminUpdateSiteSettings(adminKey:string,settings:Record<string,unknown>) { const {data,error}=await getSupabase()!.rpc('admin_update_site_settings',{p_admin_key:adminKey,p_site_open:settings.siteOpen,p_registration_open:settings.registrationOpen,p_purchase_open:settings.purchaseOpen,p_closed_message:settings.closedMessage,p_staff_password:settings.staffPassword||null});if(error) throw new Error(error.message);return data as SiteStatus },
+  async adminListMembers(adminKey:string) { const {data,error}=await getSupabase()!.rpc('admin_list_party_members',{p_admin_key:adminKey});if(error) throw new Error(error.message);return {members:(data||[]) as PartyMember[]} },
+  async adminDeleteMember(adminKey:string,memberId:string) { const {error}=await getSupabase()!.rpc('admin_delete_party_member',{p_admin_key:adminKey,p_member_id:memberId});if(error) throw new Error(error.message) },
+  async adminClearMembers(adminKey:string,mode:string) { const {data,error}=await getSupabase()!.rpc('admin_clear_party_members',{p_admin_key:adminKey,p_mode:mode});if(error) throw new Error(error.message);return data as {removed:number} },
   async listPurchaseRecords() {
     const sb=getSupabase()!
     const [{data: orders,error},{data: rooms,error: roomError}] = await Promise.all([
@@ -290,7 +310,7 @@ export const supabaseApi = {
 
   async purchase(
     code: string,
-    body: { playerId: string; areaId: string; qty: number; nickname: string; seatIds?: string[] },
+    body: { playerId: string; areaId: string; qty: number; nickname: string; seatIds?: string[]; memberToken?: string },
   ) {
     const sb = getSupabase()!
     const { data, error } = await sb.rpc('purchase_selected_seats', {
@@ -300,6 +320,7 @@ export const supabaseApi = {
       p_qty: body.qty,
       p_nickname: body.nickname,
       p_seat_ids: body.seatIds || [],
+      p_member_token: body.memberToken || null,
     })
     if (error) throw rpcError(error)
     const order = (data as { order: Order }).order

@@ -15,11 +15,13 @@ import {
 import './styles/global.css'
 import './styles/pages.css'
 import './styles/ticket.css'
+import { AccessProvider, RequireMember, SiteGate } from './lib/access'
+import { AccountPage } from './pages/Account'
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
+      <AccessProvider><SiteGate><Routes>
         <Route path="/" element={<CatalogHome />} />
         <Route path="/ActivityInfo/Details/:slug" element={<FakeActivityPage />} />
         <Route path="/search" element={<SearchPage />} />
@@ -27,16 +29,17 @@ export default function App() {
         <Route path="/orders" element={<OrdersPage />} />
         <Route path="/prank" element={<PrankPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/account" element={<AccountPage />} />
         <Route path="/host" element={<Navigate to="/admin" replace />} />
         <Route path="/join" element={<JoinPage />} />
         <Route path="/r/:code" element={<ActivityPage />} />
-        <Route path="/r/:code/queue" element={<QueuePage />} />
-        <Route path="/r/:code/area" element={<AreaPage />} />
-        <Route path="/r/:code/qty" element={<QtyPage />} />
-        <Route path="/r/:code/checkout" element={<CheckoutPage />} />
+        <Route path="/r/:code/queue" element={<RequireMember><QueuePage /></RequireMember>} />
+        <Route path="/r/:code/area" element={<RequireMember><AreaPage /></RequireMember>} />
+        <Route path="/r/:code/qty" element={<RequireMember><QtyPage /></RequireMember>} />
+        <Route path="/r/:code/checkout" element={<RequireMember><CheckoutPage /></RequireMember>} />
         <Route path="/r/:code/success" element={<SuccessPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      </Routes></SiteGate></AccessProvider>
     </BrowserRouter>
   )
 }

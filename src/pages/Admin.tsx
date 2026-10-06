@@ -2,6 +2,11 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   adminOpenSale,
+  adminClearMembers,
+  adminDeleteMember,
+  adminGetSiteSettings,
+  adminListMembers,
+  adminUpdateSiteSettings,
   cancelPurchaseRecord,
   createCards,
   clearPurchaseRecords,
@@ -23,24 +28,26 @@ import { exportAllCardImages, exportCardImage } from '../lib/cardExport'
 import { fileToDataUrl } from '../lib/imageUpload'
 import { saveSession } from '../hooks/useRoom'
 import type { FakeEvent } from '../data/catalog'
+import type { PartyMember } from '../types'
 
 const ADMIN_KEY = 'pbon-admin'
+const ADMIN_SESSION_KEY = 'pbon-admin-key'
 const DEFAULT_PASS = 'party2026'
 
-type Tab = 'orders' | 'events' | 'decoys' | 'cards'
+type Tab = 'settings' | 'members' | 'orders' | 'events' | 'decoys' | 'cards'
 
 function expectedPassword() {
   return (import.meta.env.VITE_ADMIN_PASSWORD as string | undefined) || DEFAULT_PASS
 }
 
-function setAdminLoggedIn(on: boolean) {
-  if (on) localStorage.setItem(ADMIN_KEY, '1')
-  else localStorage.removeItem(ADMIN_KEY)
+function setAdminLoggedIn(on: boolean, key='') {
+  if (on) {localStorage.setItem(ADMIN_KEY, '1');sessionStorage.setItem(ADMIN_SESSION_KEY,key)}
+  else {localStorage.removeItem(ADMIN_KEY);sessionStorage.removeItem(ADMIN_SESSION_KEY)}
 }
 
 function isAdminLoggedIn() {
   try {
-    return localStorage.getItem(ADMIN_KEY) === '1'
+    return localStorage.getItem(ADMIN_KEY) === '1' && !!sessionStorage.getItem(ADMIN_SESSION_KEY)
   } catch {
     return false
   }
@@ -71,6 +78,9 @@ export function AdminPage() {
   const [password, setPassword] = useState('')
   const [loginError, setLoginError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('events')
+  const [members,setMembers]=useState<PartyMember[]>([])
+  const [memberFilter,setMemberFilter]=useState('')
+  const [siteSettings,setSiteSettings]=useState({siteOpen:false,registrationOpen:true,purchaseOpen:false,closedMessage:'平台尚未開放，請洽活動方',staffPassword:''})
   const [records,setRecords]=useState<PurchaseRecord[]>([])
   const [recordFilter,setRecordFilter]=useState('')
   const [recordEvent,setRecordEvent]=useState('all')
@@ -99,19 +109,31 @@ export function AdminPage() {
     setEvents(ev.events)
     setDecoys(de.events)
     setCards(ca.cards)
+    const adminKey=sessionStorage.getItem(ADMIN_SESSION_KEY)||''
+    if(adminKey){
+      const [settings,memberResult]=await Promise.all([adminGetSiteSettings(adminKey),adminListMembers(adminKey)])
+      setSiteSettings(s=>({...s,...settings,staffPassword:''}));setMembers(memberResult.members)
+    }
   }
 
   useEffect(() => {
     if (authed) void refresh()
   }, [authed])
 
-  const onLogin = (e: FormEvent) => {
+  const onLogin = async (e: FormEvent) => {
     e.preventDefault()
-    if (password === expectedPassword()) {
-      setAdminLoggedIn(true)
+    if (password !== expectedPassword()) {
+      setLoginError('密碼錯誤')
+      return
+    }
+    try {
+      await adminGetSiteSettings(password)
+      setAdminLoggedIn(true,password)
       setAuthed(true)
       setLoginError(null)
-    } else setLoginError('密碼錯誤')
+    } catch {
+      setLoginError('後台密碼與資料庫設定不一致，請確認環境設定')
+    }
   }
 
   const onSaveEvent = async (e: FormEvent) => {
@@ -288,6 +310,8 @@ export function AdminPage() {
           {(
             [
               ['events', '活動'],
+              ['settings','網站開關'],
+              ['members','註冊會員'],
               ['orders', '購票紀錄'],
               ['decoys', '假活動'],
               ['cards', '假信用卡'],
@@ -791,6 +815,20 @@ export function AdminPage() {
             </div>
           </section>
         )}
+
+        {tab==='settings'&&<section className="page-card host-panel"><h3 style={{marginTop:0}}>網站開放設定</h3><p className="muted">網站、註冊與購票可以分開控制。工作人員仍可從暫停頁輸入瀏覽密碼。</p>
+          <label className="admin-switch"><input type="checkbox" checked={siteSettings.siteOpen} onChange={e=>setSiteSettings(s=>({...s,siteOpen:e.target.checked}))}/><span><strong>網站開放</strong><small>關閉時顯示暫停頁</small></span></label>
+          <label className="admin-switch"><input type="checkbox" checked={siteSettings.registrationOpen} onChange={e=>setSiteSettings(s=>({...s,registrationOpen:e.target.checked}))}/><span><strong>開放註冊</strong><small>暫停期間也能預先註冊</small></span></label>
+          <label className="admin-switch"><input type="checkbox" checked={siteSettings.purchaseOpen} onChange={e=>setSiteSettings(s=>({...s,purchaseOpen:e.target.checked}))}/><span><strong>開放購票</strong><small>會員才能進入選位與結帳</small></span></label>
+          <div className="field"><label>暫停頁文字</label><input value={siteSettings.closedMessage} onChange={e=>setSiteSettings(s=>({...s,closedMessage:e.target.value}))}/></div>
+          <div className="field"><label>新的工作人員瀏覽密碼（留空不修改）</label><input type="password" value={siteSettings.staffPassword} onChange={e=>setSiteSettings(s=>({...s,staffPassword:e.target.value}))} placeholder="至少 4 碼"/></div>
+          <button className="btn btn-green btn-block" disabled={busy} onClick={async()=>{if(!confirm('確定套用網站開放設定？'))return;setBusy(true);setError(null);try{const key=sessionStorage.getItem(ADMIN_SESSION_KEY)||'';await adminUpdateSiteSettings(key,siteSettings);setSiteSettings(s=>({...s,staffPassword:''}));setMsg('網站設定已更新')}catch(err){setError(err instanceof Error?err.message:'更新失敗')}finally{setBusy(false)}}}>儲存網站設定</button>
+        </section>}
+
+        {tab==='members'&&<section className="page-card host-panel"><div className="admin-top"><h3 style={{marginTop:0}}>註冊會員</h3><button className="btn btn-ghost" onClick={()=>void refresh()}>重新整理</button></div><div className="field"><label>搜尋名字、電話或帳號</label><input value={memberFilter} onChange={e=>setMemberFilter(e.target.value)} placeholder="搜尋會員"/></div>
+          <div className="record-summary"><p>目前 {members.length} 位會員 · {members.filter(m=>(m.orderCount||0)>0).length} 位已購票</p><div className="share-actions"><button className="btn btn-ghost" disabled={busy||!members.length} onClick={async()=>{if(!confirm('清除所有尚未購票的會員？'))return;await adminClearMembers(sessionStorage.getItem(ADMIN_SESSION_KEY)||'','unpurchased');await refresh();setMsg('已清除未購票會員')}}>清除未購票</button><button className="btn btn-danger" disabled={busy||!members.length} onClick={async()=>{const full=confirm('按「確定」會完整重置會員、訂單與座位。\n按「取消」則只清除會員資料。');const mode=full?'full':'members';if(!confirm(full?'再次確認：所有訂單會刪除並釋回座位。':'確認清除全部會員？訂單快照會保留。'))return;await adminClearMembers(sessionStorage.getItem(ADMIN_SESSION_KEY)||'',mode);await refresh();setMsg(full?'已完成新活動完整重置':'已清除全部會員')}}>清除全部／完整重置</button></div></div>
+          <div className="member-list">{members.filter(m=>[m.name,m.phone,m.account].join(' ').toLowerCase().includes(memberFilter.toLowerCase())).map(m=><article className="member-row" key={m.id}><div><strong>{m.name}</strong><span>@{m.account}</span><span>{m.phone}</span><small>{new Date(m.createdAt).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false})} · 訂單 {m.orderCount||0} 筆</small></div><button className="btn btn-ghost" disabled={busy} onClick={async()=>{if(!confirm(`刪除 ${m.name} 的註冊資料？`))return;await adminDeleteMember(sessionStorage.getItem(ADMIN_SESSION_KEY)||'',m.id);await refresh();setMsg('會員已刪除')}}>刪除</button></article>)}</div>
+        </section>}
 
         <p style={{ textAlign: 'center' }}>
           <Link to="/">回售票首頁</Link>

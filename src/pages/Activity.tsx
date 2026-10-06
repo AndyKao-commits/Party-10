@@ -6,6 +6,7 @@ import { Shell } from '../components/Layout'
 import { SharePanel } from '../components/SharePanel'
 import { useCountdown } from '../hooks/useCountdown'
 import { loadSession, useRoom } from '../hooks/useRoom'
+import { useAccess } from '../lib/access'
 
 export function ActivityPage() {
   const { code = '' } = useParams()
@@ -14,6 +15,7 @@ export function ActivityPage() {
   const { label, done } = useCountdown(room?.saleAt)
   const [tab, setTab] = useState<'info' | 'buy' | 'board'>('info')
   const nav = useNavigate()
+  const {status}=useAccess()
   const inRoom = session?.code === code
   const isHost = inRoom && session.isHost && !!session.hostId
   const needsJoin = Boolean(room) && !inRoom
@@ -116,10 +118,10 @@ export function ActivityPage() {
               </div>
               <button
                 className="btn btn-orange buy-cta"
-                disabled={!saleOpen || needsJoin}
+                disabled={!saleOpen || needsJoin || !status?.purchaseOpen}
                 onClick={() => nav(`/r/${code}/queue`)}
               >
-                {saleOpen ? '線上購票' : '尚未開賣'}
+                {!status?.purchaseOpen ? '購票尚未開放' : saleOpen ? '線上購票' : '尚未開賣'}
               </button>
             </div>
 
@@ -148,7 +150,7 @@ export function ActivityPage() {
           </div>
         </div>
 
-        {saleOpen && !needsJoin && (
+        {saleOpen && !needsJoin && status?.purchaseOpen && (
           <div className="mobile-buy-bar">
             <button className="btn btn-orange btn-block" onClick={() => nav(`/r/${code}/queue`)}>
               線上購票 · 立刻搶
@@ -205,7 +207,7 @@ export function ActivityPage() {
                   <td>
                     <button
                       className="btn btn-orange"
-                      disabled={!saleOpen}
+                      disabled={!saleOpen || !status?.purchaseOpen}
                       onClick={() => nav(`/r/${code}/queue`)}
                     >
                       線上購票

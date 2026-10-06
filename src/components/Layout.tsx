@@ -1,5 +1,6 @@
 import { Link, NavLink } from 'react-router-dom'
 import type { ReactNode } from 'react'
+import { useAccess } from '../lib/access'
 
 export function DemoBanner() {
   return (
@@ -8,6 +9,7 @@ export function DemoBanner() {
 }
 
 export function Header() {
+  const {status}=useAccess()
   return (
     <header className="site-header">
       <div className="site-header__inner">
@@ -23,9 +25,7 @@ export function Header() {
           <NavLink to="/orders">訂單查詢</NavLink>
           <NavLink to="/news">公告</NavLink>
         </nav>
-        <Link to="/orders" className="header-order">
-          訂單查詢 →
-        </Link>
+        <Link to={status?.member?'/account':'/account'} className="header-order">{status?.member?`你好，${status.member.name}`:'登入／註冊 →'}</Link>
       </div>
       <nav className="header-subnav">
         <NavLink to="/" end>
