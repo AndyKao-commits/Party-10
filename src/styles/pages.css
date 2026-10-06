@@ -542,41 +542,86 @@
 
 .card-list {
   display: grid;
+  gap: 20px;
+}
+
+.fake-card-item {
+  padding: 14px;
+  border: 1px solid var(--pbon-line);
+  border-radius: 14px;
+  background: #f7faf8;
+}
+
+.fake-card-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
 .fake-card {
-  background: linear-gradient(135deg, #0b3d2c, #145c3f 55%, #1a1a1a);
+  position: relative;
+  aspect-ratio: 1.586 / 1;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: radial-gradient(circle at 90% 10%, #3b82f688, transparent 34%), linear-gradient(135deg, #071c34, #075985 55%, #09090b);
   color: #fff;
-  border-radius: 14px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: clamp(14px, 2.5vw, 22px);
+  box-shadow: 0 10px 24px #0f172a26;
 }
 
-.fake-card__label {
-  font-size: 13px;
-  opacity: 0.9;
-  margin-bottom: 10px;
+.fake-card__brand, .fake-card__back-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: clamp(10px, 2vw, 14px);
+}
+
+.fake-card__brand em {font-size: clamp(12px, 2.5vw, 18px);font-weight: 800}
+
+.fake-card__chip {
+  width: 48px;
+  height: 36px;
+  margin: clamp(14px, 3vw, 24px) 0;
+  border-radius: 7px;
+  background: repeating-linear-gradient(90deg,transparent 0 15px,#8c7130 15px 17px),repeating-linear-gradient(0deg,#d9b85e 0 16px,#8c7130 16px 18px);
 }
 
 .fake-card__num {
   font-family: var(--font-display);
-  font-size: 20px;
-  letter-spacing: 0.08em;
-  margin-bottom: 10px;
+  font-size: clamp(15px, 3vw, 22px);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  margin-bottom: clamp(10px, 2vw, 18px);
 }
 
 .fake-card__meta {
   display: flex;
   justify-content: space-between;
-  font-size: 13px;
-  margin-bottom: 12px;
-  opacity: 0.95;
+  gap: 12px;
+  font-size: clamp(10px, 2vw, 14px);
+  text-transform: uppercase;
 }
 
-.fake-card .btn-ghost {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.25);
-  color: #fff;
+.fake-card__meta span {display:grid;gap:2px}
+.fake-card__meta small,.fake-card--back small {font-size:9px;opacity:.65}
+.fake-card__demo {position:absolute;left:22px;bottom:14px;font-size:10px;font-weight:800;opacity:.65}
+
+.fake-card--back {padding-left:0;padding-right:0}
+.fake-card__stripe {height:22%;margin:12% 0 10%;background:#050505}
+.fake-card--back > small,.fake-card--back > p,.fake-card__back-foot {margin-left:22px;margin-right:22px}
+.fake-card__signature {display:flex;height:16%;margin:4px 22px 0;background:#f4f4f5;color:#111;align-items:center;justify-content:space-between;padding-left:14px;box-sizing:border-box}
+.fake-card__signature span {font-family:cursive;opacity:.65;white-space:nowrap;overflow:hidden}
+.fake-card__signature b {display:grid;place-items:center;align-self:stretch;min-width:54px;background:#fff;font-style:italic}
+.fake-card--back p {font-size:clamp(8px,1.7vw,11px);opacity:.8}
+.fake-card__back-foot {position:absolute;left:0;right:0;bottom:16px}
+.fake-card-item__title {margin:12px 2px 8px;font-weight:800}
+.fake-card-item .share-actions {margin-top:8px}
+
+@media (max-width: 700px) {
+  .fake-card-pair {grid-template-columns:1fr}
+  .fake-card {border-radius:14px}
 }
 
 .footer-admin {

@@ -19,6 +19,7 @@ import {
 } from '../api'
 import { Shell } from '../components/Layout'
 import { formatCardForShare, generateFakeCard, type FakeCard } from '../lib/cards'
+import { exportAllCardImages, exportCardImage } from '../lib/cardExport'
 import { fileToDataUrl } from '../lib/imageUpload'
 import { saveSession } from '../hooks/useRoom'
 import type { FakeEvent } from '../data/catalog'
@@ -633,9 +634,30 @@ export function AdminPage() {
 
         {tab === 'cards' && (
           <section className="page-card host-panel">
-            <h3 style={{ marginTop: 0 }}>假信用卡</h3>
+            <div className="admin-top">
+              <h3 style={{ marginTop: 0 }}>假信用卡</h3>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={busy || cards.length === 0}
+                onClick={async () => {
+                  setBusy(true)
+                  setError(null)
+                  try {
+                    await exportAllCardImages(cards)
+                    setMsg(`已匯出 ${cards.length} 張卡片圖片 ZIP`)
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : '批量匯出失敗')
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              >
+                批量匯出圖片
+              </button>
+            </div>
             <p className="muted">
-              隨機產生卡號、有效月年、四碼安全碼。分給現場的人，結帳時必須輸入正確才過。
+              每張都有卡號、持卡人、有效期限、三碼安全碼與正反面。圖片會標示 DEMO，僅供派對遊戲使用。
             </p>
             <div className="field-row">
               <div className="field">
@@ -703,34 +725,67 @@ export function AdminPage() {
 
             <div className="card-list">
               {cards.map((c) => (
-                <article key={c.id} className="fake-card">
-                  <div className="fake-card__label">{c.label || c.holder}</div>
-                  <div className="fake-card__num">{c.cardNumber}</div>
-                  <div className="fake-card__meta">
-                    <span>
-                      {c.expMonth}/{c.expYear}
-                    </span>
-                    <span>CVV {c.cvv}</span>
+                <article key={c.id} className="fake-card-item">
+                  <div className="fake-card-pair">
+                    <div className="fake-card fake-card--front">
+                      <div className="fake-card__brand"><strong>PARTY BANK</strong><em>{c.cardNumber.replace(/\D/g, '').startsWith('5') ? 'MASTERCARD' : 'VISA'}</em></div>
+                      <div className="fake-card__chip" aria-hidden="true" />
+                      <div className="fake-card__num">{c.cardNumber}</div>
+                      <div className="fake-card__meta">
+                        <span><small>CARD HOLDER</small>{c.holder}</span>
+                        <span><small>VALID THRU</small>{c.expMonth}/{c.expYear}</span>
+                      </div>
+                      <div className="fake-card__demo">DEMO · NOT VALID</div>
+                    </div>
+                    <div className="fake-card fake-card--back">
+                      <div className="fake-card__stripe" />
+                      <small>AUTHORIZED SIGNATURE</small>
+                      <div className="fake-card__signature"><span>{c.holder}</span><b>{c.cvv}</b></div>
+                      <p>此卡僅供私人派對遊戲使用，無付款功能。</p>
+                      <div className="fake-card__back-foot"><strong>PARTY BANK</strong><span>DEMO · NOT VALID</span></div>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-block"
-                    onClick={async () => {
-                      const text = formatCardForShare(c)
-                      try {
-                        if (navigator.share) await navigator.share({ text, title: '派對假信用卡' })
-                        else {
+                  <div className="fake-card-item__title">{c.label || c.holder}</div>
+                  <div className="share-actions">
+                    <button
+                      type="button"
+                      className="btn btn-orange"
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true)
+                        setError(null)
+                        try {
+                          await exportCardImage(c)
+                          setMsg(`已匯出 ${c.label || c.holder} 的正反面圖片`)
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : '圖片匯出失敗')
+                        } finally {
+                          setBusy(false)
+                        }
+                      }}
+                    >
+                      匯出正反面圖片
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={async () => {
+                        const text = formatCardForShare(c)
+                        try {
+                          if (navigator.share) await navigator.share({ text, title: '派對假信用卡' })
+                          else {
+                            await navigator.clipboard.writeText(text)
+                            setMsg('已複製假卡資訊')
+                          }
+                        } catch {
                           await navigator.clipboard.writeText(text)
                           setMsg('已複製假卡資訊')
                         }
-                      } catch {
-                        await navigator.clipboard.writeText(text)
-                        setMsg('已複製假卡資訊')
-                      }
-                    }}
-                  >
-                    分享／複製給這個人
-                  </button>
+                      }}
+                    >
+                      分享／複製
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>
