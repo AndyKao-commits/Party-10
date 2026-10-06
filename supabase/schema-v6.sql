@@ -147,7 +147,7 @@ as $$ begin
  perform ticket_private.assert_admin(p_admin_key);
  if nullif(p_staff_password,'') is not null and char_length(p_staff_password)<4 then raise exception '瀏覽密碼至少需要 4 個字元'; end if;
  update ticket_private.site_settings set site_open=p_site_open,registration_open=p_registration_open,purchase_open=p_purchase_open,closed_message=left(coalesce(nullif(btrim(p_closed_message),''),'平台尚未開放，請洽活動方'),100),staff_password_hash=case when nullif(p_staff_password,'') is null then staff_password_hash else extensions.crypt(p_staff_password,extensions.gen_salt('bf')) end,access_revision=access_revision+case when nullif(p_staff_password,'') is null then 0 else 1 end,updated_at=now() where id=true;
- if nullif(p_staff_password,'') is not null then delete from ticket_private.staff_sessions; end if;
+ if nullif(p_staff_password,'') is not null then delete from ticket_private.staff_sessions where true; end if;
  return public.admin_get_site_settings(p_admin_key);
 end $$;
 
@@ -163,9 +163,9 @@ language plpgsql security definer set search_path=''
 as $$ declare removed int; begin
  perform ticket_private.assert_admin(p_admin_key);
  if p_mode='unpurchased' then delete from ticket_private.party_members m where not exists(select 1 from public.orders o where o.member_id=m.id);
- elsif p_mode='members' then delete from ticket_private.party_members;
+ elsif p_mode='members' then delete from ticket_private.party_members where true;
  elsif p_mode='full' then
-  delete from public.orders;update ticket_private.seats set sold=false where is_real;update public.areas set remaining=real_seats;delete from public.players where not is_host;delete from ticket_private.party_members;
+  delete from public.orders where true;update ticket_private.seats set sold=false where is_real;update public.areas set remaining=real_seats;delete from public.players where not is_host;delete from ticket_private.party_members where true;
  else raise exception '未知的清除模式'; end if;
  get diagnostics removed=row_count;return jsonb_build_object('removed',removed);
 end $$;
