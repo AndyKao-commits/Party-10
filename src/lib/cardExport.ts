@@ -1,4 +1,3 @@
-import { zipSync } from 'fflate'
 import type { FakeCard } from './cards'
 
 const WIDTH = 1400
@@ -155,6 +154,58 @@ function canvasBlob(canvas: HTMLCanvasElement) {
   )
 }
 
+function crc32(bytes: Uint8Array) {
+  let crc = 0xffffffff
+  for (const byte of bytes) {
+    crc ^= byte
+    for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1))
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+function zipImages(files: Array<{ name: string; data: Uint8Array }>) {
+  const encoder = new TextEncoder()
+  const locals: Uint8Array[] = []
+  const centrals: Uint8Array[] = []
+  let offset = 0
+  const now = new Date()
+  const time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1)
+  const date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()
+  const write16 = (view: DataView, at: number, value: number) => view.setUint16(at, value, true)
+  const write32 = (view: DataView, at: number, value: number) => view.setUint32(at, value, true)
+
+  for (const file of files) {
+    const name = encoder.encode(file.name)
+    const checksum = crc32(file.data)
+    const local = new Uint8Array(30 + name.length + file.data.length)
+    const lv = new DataView(local.buffer)
+    write32(lv, 0, 0x04034b50); write16(lv, 4, 20); write16(lv, 6, 0x0800)
+    write16(lv, 8, 0); write16(lv, 10, time); write16(lv, 12, date); write32(lv, 14, checksum)
+    write32(lv, 18, file.data.length); write32(lv, 22, file.data.length); write16(lv, 26, name.length)
+    local.set(name, 30); local.set(file.data, 30 + name.length)
+    locals.push(local)
+
+    const central = new Uint8Array(46 + name.length)
+    const cv = new DataView(central.buffer)
+    write32(cv, 0, 0x02014b50); write16(cv, 4, 20); write16(cv, 6, 20); write16(cv, 8, 0x0800)
+    write16(cv, 10, 0); write16(cv, 12, time); write16(cv, 14, date); write32(cv, 16, checksum)
+    write32(cv, 20, file.data.length); write32(cv, 24, file.data.length); write16(cv, 28, name.length)
+    write32(cv, 42, offset); central.set(name, 46)
+    centrals.push(central)
+    offset += local.length
+  }
+
+  const centralSize = centrals.reduce((sum, part) => sum + part.length, 0)
+  const end = new Uint8Array(22)
+  const ev = new DataView(end.buffer)
+  write32(ev, 0, 0x06054b50); write16(ev, 8, files.length); write16(ev, 10, files.length)
+  write32(ev, 12, centralSize); write32(ev, 16, offset)
+  const result = new Uint8Array(offset + centralSize + end.length)
+  let cursor = 0
+  for (const part of [...locals, ...centrals, end]) { result.set(part, cursor); cursor += part.length }
+  return result
+}
+
 export async function exportCardImage(card: FakeCard) {
   const blob = await canvasBlob(await renderCard(card))
   download(blob, `${safeName(card.label || card.holder)}-信用卡正反面.png`)
@@ -162,12 +213,12 @@ export async function exportCardImage(card: FakeCard) {
 
 export async function exportAllCardImages(cards: FakeCard[]) {
   if (!cards.length) throw new Error('目前沒有可匯出的假卡')
-  const files: Record<string, Uint8Array> = {}
+  const files: Array<{ name: string; data: Uint8Array }> = []
   for (let i = 0; i < cards.length; i++) {
     const blob = await canvasBlob(await renderCard(cards[i]))
     const name = `${String(i + 1).padStart(2, '0')}-${safeName(cards[i].label || cards[i].holder)}.png`
-    files[name] = new Uint8Array(await blob.arrayBuffer())
+    files.push({ name, data: new Uint8Array(await blob.arrayBuffer()) })
   }
-  const zip = zipSync(files, { level: 0 })
+  const zip = zipImages(files)
   download(new Blob([zip as BlobPart], { type: 'application/zip' }), `派對假卡-${cards.length}張.zip`)
 }
