@@ -4,6 +4,12 @@ const WIDTH = 1400
 const HEIGHT = 560
 const CARD_W = 660
 const CARD_H = 416
+const A4_W = 2480
+const A4_H = 3508
+const PRINT_CARD_W = 1011 // 85.6 mm at 300 dpi
+const PRINT_SCALE = PRINT_CARD_W / CARD_W
+const PRINT_CARD_H = Math.round(CARD_H * PRINT_SCALE) // 53.98 mm at 300 dpi
+const CARDS_PER_A4 = 8
 
 function brandFor(card: FakeCard) {
   return card.cardNumber.replace(/\D/g, '').startsWith('5') ? 'MASTERCARD' : 'VISA'
@@ -135,6 +141,60 @@ async function renderCard(card: FakeCard) {
   return canvas
 }
 
+function printPositions() {
+  const gapX = (A4_W - PRINT_CARD_W * 2) / 3
+  const gapY = (A4_H - PRINT_CARD_H * 4) / 5
+  return Array.from({ length: CARDS_PER_A4 }, (_, index) => ({
+    x: Math.round(gapX + (index % 2) * (PRINT_CARD_W + gapX)),
+    y: Math.round(gapY + Math.floor(index / 2) * (PRINT_CARD_H + gapY)),
+  }))
+}
+
+function drawCropMarks(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  const mark = 24
+  const inset = 8
+  ctx.save()
+  ctx.strokeStyle = '#64748b'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(x - mark, y); ctx.lineTo(x - inset, y)
+  ctx.moveTo(x, y - mark); ctx.lineTo(x, y - inset)
+  ctx.moveTo(x + PRINT_CARD_W + inset, y); ctx.lineTo(x + PRINT_CARD_W + mark, y)
+  ctx.moveTo(x + PRINT_CARD_W, y - mark); ctx.lineTo(x + PRINT_CARD_W, y - inset)
+  ctx.moveTo(x - mark, y + PRINT_CARD_H); ctx.lineTo(x - inset, y + PRINT_CARD_H)
+  ctx.moveTo(x, y + PRINT_CARD_H + inset); ctx.lineTo(x, y + PRINT_CARD_H + mark)
+  ctx.moveTo(x + PRINT_CARD_W + inset, y + PRINT_CARD_H); ctx.lineTo(x + PRINT_CARD_W + mark, y + PRINT_CARD_H)
+  ctx.moveTo(x + PRINT_CARD_W, y + PRINT_CARD_H + inset); ctx.lineTo(x + PRINT_CARD_W, y + PRINT_CARD_H + mark)
+  ctx.stroke()
+  ctx.restore()
+}
+
+async function renderA4Page(cards: FakeCard[], side: 'front' | 'back') {
+  await document.fonts?.ready
+  const canvas = document.createElement('canvas')
+  canvas.width = A4_W
+  canvas.height = A4_H
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('此瀏覽器無法輸出圖片')
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(0, 0, A4_W, A4_H)
+  const positions = printPositions()
+  cards.forEach((card, index) => {
+    const frontPosition = positions[index]
+    // Mirror the back horizontally so long-edge duplex printing lines up.
+    const x = side === 'back' ? A4_W - frontPosition.x - PRINT_CARD_W : frontPosition.x
+    const y = frontPosition.y
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(PRINT_SCALE, PRINT_SCALE)
+    if (side === 'front') drawFront(ctx, card, 0, 0)
+    else drawBack(ctx, card, 0, 0)
+    ctx.restore()
+    drawCropMarks(ctx, x, y)
+  })
+  return canvas
+}
+
 function safeName(value: string) {
   return (value || 'party-card').replace(/[\\/:*?"<>|]/g, '-').trim().slice(0, 50) || 'party-card'
 }
@@ -214,11 +274,16 @@ export async function exportCardImage(card: FakeCard) {
 export async function exportAllCardImages(cards: FakeCard[]) {
   if (!cards.length) throw new Error('目前沒有可匯出的假卡')
   const files: Array<{ name: string; data: Uint8Array }> = []
-  for (let i = 0; i < cards.length; i++) {
-    const blob = await canvasBlob(await renderCard(cards[i]))
-    const name = `${String(i + 1).padStart(2, '0')}-${safeName(cards[i].label || cards[i].holder)}.png`
-    files.push({ name, data: new Uint8Array(await blob.arrayBuffer()) })
+  const pageCount = Math.ceil(cards.length / CARDS_PER_A4)
+  for (let page = 0; page < pageCount; page++) {
+    const pageCards = cards.slice(page * CARDS_PER_A4, (page + 1) * CARDS_PER_A4)
+    for (const side of ['front', 'back'] as const) {
+      const blob = await canvasBlob(await renderA4Page(pageCards, side))
+      const sideLabel = side === 'front' ? '正面' : '背面-雙面列印對位'
+      const name = `A4-${String(page + 1).padStart(2, '0')}-${sideLabel}.png`
+      files.push({ name, data: new Uint8Array(await blob.arrayBuffer()) })
+    }
   }
   const zip = zipImages(files)
-  download(new Blob([zip as BlobPart], { type: 'application/zip' }), `派對假卡-${cards.length}張.zip`)
+  download(new Blob([zip as BlobPart], { type: 'application/zip' }), `派對假卡-A4列印版-${cards.length}張.zip`)
 }
