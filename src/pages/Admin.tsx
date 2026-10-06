@@ -645,7 +645,7 @@ export function AdminPage() {
                   setError(null)
                   try {
                     await exportAllCardImages(cards)
-                    setMsg(`已匯出 ${cards.length} 張卡片圖片 ZIP`)
+                    setMsg(`已匯出 ${cards.length} 張卡片，共 ${Math.ceil(cards.length / 8)} 組 A4 正反面圖片`)
                   } catch (err) {
                     setError(err instanceof Error ? err.message : '批量匯出失敗')
                   } finally {
@@ -653,11 +653,11 @@ export function AdminPage() {
                   }
                 }}
               >
-                批量匯出圖片
+                匯出 A4 排版
               </button>
             </div>
             <p className="muted">
-              每張都有卡號、持卡人、有效期限、三碼安全碼與正反面。圖片會標示 DEMO，僅供派對遊戲使用。
+              每張都有卡號、持卡人、有效期限、三碼安全碼與正反面。A4 排版每頁 8 張，滿版自動換頁，並附雙面列印對位背面。
             </p>
             <div className="field-row">
               <div className="field">
