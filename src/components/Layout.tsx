@@ -14,8 +14,8 @@ export function Header() {
     <header className="site-header">
       <div className="site-header__inner">
         <Link to="/" className="brand">
-          <span className="brand__mark">pbon</span>
-          <span className="brand__sub">售票系統</span>
+          <span className="brand__mark">PBON</span>
+          <span className="brand__sub">派對系統</span>
         </Link>
         <nav className="header-links header-links--desktop">
           <NavLink to="/" end>
@@ -51,7 +51,7 @@ export function Footer() {
           後台
         </Link>
       </div>
-      <p>pbon 售票系統｜派對娛樂模擬平台・票券無真實效力</p>
+      <p>PBON｜派對系統・票券無真實效力</p>
     </footer>
   )
 }
