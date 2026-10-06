@@ -201,7 +201,7 @@ export function SuccessPage() {
           <h2 style={{ marginBottom: 4 }}>購票成功！</h2>
           <p className="muted">請截圖保存，這是你今晚的戰利品。</p>
           <div className="ticket-stub">
-            <div className="muted" style={{ fontSize: 12 }}>pbon 派對售票系統</div>
+            <div className="muted" style={{ fontSize: 12 }}>PBON｜派對系統</div>
             <div style={{ fontWeight: 800, fontSize: 18, margin: '8px 0' }}>{order.areaName}</div>
             <div>購票人：{order.nickname}</div>
             <div>座位：{order.seats.join('、')}</div>
