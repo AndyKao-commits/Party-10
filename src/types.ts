@@ -48,3 +48,14 @@ export type Session = {
   isHost: boolean
   hostId?: string
 }
+
+export type PartyMember = { id: string; name: string; phone: string; account: string; createdAt: number; orderCount?: number }
+export type SiteStatus = {
+  siteOpen: boolean
+  effectiveOpen: boolean
+  registrationOpen: boolean
+  purchaseOpen: boolean
+  closedMessage: string
+  staffAccess: boolean
+  member: PartyMember | null
+}

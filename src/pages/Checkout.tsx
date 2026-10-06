@@ -4,19 +4,20 @@ import { purchase, validateCard } from '../api'
 import { Shell, StepBar } from '../components/Layout'
 import { loadSession, useRoom } from '../hooks/useRoom'
 import type { Order } from '../types'
+import { useAccess } from '../lib/access'
 
 export function CheckoutPage() {
   const { code = '' } = useParams()
   const { room } = useRoom(code)
   const nav = useNavigate()
   const session = loadSession()
+  const {status,memberToken}=useAccess()
   const params = new URLSearchParams(location.search)
   const areaId = params.get('area') || ''
   const seatIds = (params.get('seats') || '').split(',').filter(Boolean)
   const qty = seatIds.length
   const area = room?.areas.find((a) => a.id === areaId)
   const [retry, setRetry] = useState(false)
-  const [phone, setPhone] = useState('')
   const [agree, setAgree] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -66,6 +67,7 @@ export function CheckoutPage() {
         seatIds,
         qty,
         nickname: session?.nickname || '訪客',
+        memberToken,
       })
       sessionStorage.setItem(`pbon-order-${code}`, JSON.stringify(res.order))
       nav(`/r/${code}/success`, { replace: true })
@@ -93,15 +95,7 @@ export function CheckoutPage() {
             <div>小計 NT$ {total.toLocaleString()}</div>
           </div>
 
-          <div className="field">
-            <label>手機號碼</label>
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              inputMode="tel"
-              placeholder="0912345678"
-            />
-          </div>
+          <div className="member-checkout"><strong>{status?.member?.name}</strong><span>{status?.member?.account} · {status?.member?.phone}</span></div>
 
           <h3 style={{ fontSize: 15, margin: '8px 0' }}>信用卡付款（假卡）</h3>
           <div className="field">
