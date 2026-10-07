@@ -30,7 +30,8 @@ assert.equal((await q("select jsonb_array_length(public.admin_list_party_members
 const fake=seats.find(s=>!s.is_real), real=seats.find(s=>s.is_real)
 const buy=(id) => q('select public.purchase_selected_seats($1,$2,$3,$4,$5,$6::uuid[],$7) result',[c,player,'general',1,'測試',[id],memberToken])
 await assert.rejects(q('select public.purchase_selected_seats($1,$2,$3,$4,$5,$6::uuid[],$7)',[c,player,'general',1,'測試',[real?.id || seats[0].id],'bad']),/請先登入會員/)
-assert.equal((await buy(fake.id))[0].result.error,'你是黃牛不賣你 請重新購票')
+const fakeResult=(await buy(fake.id))[0].result
+assert.equal(fakeResult.code,'FAKE_SEAT');assert.equal(typeof fakeResult.error,'string')
 assert.equal((await q("select count(*)::int n from orders where room_code='BBQ1011'"))[0].n,0)
 assert.equal((await q("select remaining from areas where room_code='BBQ1011'"))[0].remaining,18)
 assert.equal((await q('select triggered from ticket_private.seats where id=$1',[fake.id]))[0].triggered,true)

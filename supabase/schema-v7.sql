@@ -11,7 +11,7 @@ $$;
 
 create or replace function public.purchase_selected_seats(p_code text,p_player_id uuid,p_area_id text,p_qty int,p_nickname text,p_seat_ids uuid[],p_member_token text) returns jsonb
 language plpgsql security definer set search_path=''
-as $$ declare r public.rooms;a public.areas;o public.orders;n int;labels text[];m ticket_private.party_members;s ticket_private.site_settings;begin
+as $$ declare r public.rooms;a public.areas;o public.orders;n int;labels text[];m ticket_private.party_members;s ticket_private.site_settings;warning_text text;begin
  select * into m from ticket_private.current_member(p_member_token);if m.id is null then raise exception '請先登入會員';end if;
  select * into s from ticket_private.site_settings where id=true;if not s.purchase_open then raise exception '目前尚未開放購票';end if;
  select * into r from public.rooms where code=upper(p_code) for update;if r.code is null then raise exception '找不到活動';end if;if not(r.sale_open or r.sale_at<=now()) then raise exception '尚未開賣';end if;
@@ -22,7 +22,18 @@ as $$ declare r public.rooms;a public.areas;o public.orders;n int;labels text[];
  if exists(select 1 from ticket_private.seats where id=any(p_seat_ids) and (sold or triggered)) then raise exception '座位已被購買，請重新選位';end if;
  if exists(select 1 from ticket_private.seats where id=any(p_seat_ids) and not is_real) then
   update ticket_private.seats set triggered=true where id=any(p_seat_ids) and not is_real;
-  return jsonb_build_object('error','你是黃牛不賣你 請重新購票','code','FAKE_SEAT');
+  warning_text:=case floor(random()*10)::int
+   when 0 then '你是黃牛不讓你買，請重新選位'
+   when 1 then '此座位已被其他人搶先購買'
+   when 2 then '此座位已被神秘嘉賓預留'
+   when 3 then '系統偵測到可疑手速，本席暫不出售'
+   when 4 then '這個位置已經有主人了，換一個吧'
+   when 5 then '很抱歉，你與這個座位緣分未到'
+   when 6 then '此座位正在裝忙，暫時不接客'
+   when 7 then '手速很快，但命運更快'
+   when 8 then '工作人員偷偷保留了這個位置'
+   else '系統判定：這張票不屬於你' end;
+  return jsonb_build_object('error',warning_text,'code','FAKE_SEAT');
  end if;
  if a.remaining<n then raise exception '剩餘座位不足';end if;if random()<r.fail_chance then raise exception '系統忙碌中，請重新再試';end if;
  select array_agg(label order by position) into labels from ticket_private.seats where id=any(p_seat_ids);update ticket_private.seats set sold=true where id=any(p_seat_ids);update public.areas set remaining=remaining-n where room_code=r.code and id=a.id;

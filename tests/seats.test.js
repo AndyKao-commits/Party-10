@@ -10,7 +10,7 @@ test('exact true/false counts, unique numbered seats, shuffled truth', () => {
 })
 test('fake or mixed selections fail atomically without changing inventory', () => {
  const room=fresh(), real=room.seats.find(s => s.isReal), fake=room.seats.find(s => !s.isReal)
- assert.throws(() => selectForPurchase(room,'a',[real.id,fake.id],2),/你是黃牛不賣你 請重新購票/)
+ assert.throws(() => selectForPurchase(room,'a',[real.id,fake.id],2),err => err.code==='FAKE_SEAT')
  assert.equal(room.areas[0].remaining,18);assert.ok(room.seats.every(s => !s.sold))
 })
 test('duplicate, foreign, stale, over-limit seat requests rejected', () => {
