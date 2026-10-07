@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { openSale, resetStock } from '../api'
-import { JoinGate } from '../components/JoinGate'
 import { Shell } from '../components/Layout'
 import { SharePanel } from '../components/SharePanel'
 import { useCountdown } from '../hooks/useCountdown'
@@ -11,14 +10,13 @@ import { useAccess } from '../lib/access'
 export function ActivityPage() {
   const { code = '' } = useParams()
   const { room, error, connected } = useRoom(code)
-  const [session, setSession] = useState(() => loadSession())
+  const session = loadSession()
   const { label, done } = useCountdown(room?.saleAt)
   const [tab, setTab] = useState<'info' | 'buy' | 'board'>('info')
   const nav = useNavigate()
   const {status}=useAccess()
   const inRoom = session?.code === code
   const isHost = inRoom && session.isHost && !!session.hostId
-  const needsJoin = Boolean(room) && !inRoom
 
   const totalLeft = useMemo(
     () => room?.areas.reduce((s, a) => s + a.remaining, 0) ?? 0,
@@ -54,12 +52,6 @@ export function ActivityPage() {
 
   return (
     <Shell>
-      {needsJoin && (
-        <JoinGate
-          code={code}
-          onJoined={() => setSession(loadSession())}
-        />
-      )}
       <div className="page-card flash">
         <div className="hero-grid">
           <div className="detail-poster">
@@ -119,7 +111,7 @@ export function ActivityPage() {
               </div>
               <button
                 className="btn btn-orange buy-cta"
-                disabled={!saleOpen || soldOut || needsJoin || !status?.purchaseOpen}
+                disabled={!saleOpen || soldOut || !status?.purchaseOpen}
                 onClick={() => nav(`/r/${code}/queue`)}
               >
                 {soldOut ? '已售完' : !status?.purchaseOpen ? '購票尚未開放' : saleOpen ? '線上購票' : '尚未開賣'}
@@ -151,7 +143,7 @@ export function ActivityPage() {
           </div>
         </div>
 
-        {saleOpen && !needsJoin && status?.purchaseOpen && (
+        {saleOpen && status?.purchaseOpen && (
           <div className="mobile-buy-bar">
             <button className="btn btn-orange btn-block" onClick={() => nav(`/r/${code}/queue`)}>
               線上購票 · 立刻搶

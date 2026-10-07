@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { getSiteStatus, loginMember, logoutMember, registerMember, verifyStaffAccess } from '../api'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { getSiteStatus, joinRoom, loginMember, logoutMember, registerMember, verifyStaffAccess } from '../api'
 import type { PartyMember, SiteStatus } from '../types'
+import { loadSession, saveSession } from '../hooks/useRoom'
 
 const MEMBER_KEY='pbon-member-token', STAFF_KEY='pbon-staff-token'
 type AccessValue={status:SiteStatus|null;loading:boolean;memberToken:string;refresh:()=>Promise<void>;setMember:(token:string,member:PartyMember)=>void;signOut:()=>Promise<void>}
@@ -42,4 +43,12 @@ export function MaintenancePage(){const {status,refresh}=useAccess();const [staf
 }
 
 export function SiteGate({children}:{children:ReactNode}){const {status,loading}=useAccess();const location=useLocation();if(location.pathname.startsWith('/admin'))return children;if(loading)return <div className="gate-loading"><div className="spinner"/></div>;if(!status?.effectiveOpen)return <MaintenancePage/>;return children}
-export function RequireMember({children}:{children:ReactNode}){const {status}=useAccess();const location=useLocation();if(!status?.member)return <Navigate to={`/account?next=${encodeURIComponent(location.pathname+location.search)}`} replace/>;if(!status.purchaseOpen)return <Navigate to="/" replace/>;return children}
+function PlayerGate({children,member}:{children:ReactNode;member:PartyMember}){
+ const {code=''}=useParams();const [ready,setReady]=useState(()=>{const current=loadSession();return current?.code===code&&!!current.playerId});const [error,setError]=useState('');const [attempt,setAttempt]=useState(0)
+ useEffect(()=>{if(ready||!code)return;let active=true;const enter=async()=>{setError('');try{const current=loadSession();if(current?.code===code&&current.playerId){if(active)setReady(true);return}const result=await joinRoom(code,member.name);saveSession({code:result.room.code,playerId:result.playerId,nickname:member.name,isHost:false});if(active)setReady(true)}catch(err){if(active)setError(err instanceof Error?err.message:'進入活動失敗')}};void enter();return()=>{active=false}},[attempt,code,member.name,ready])
+ if(error)return <div className="gate-loading"><div className="error-box">{error}</div><button className="btn btn-green" onClick={()=>setAttempt(value=>value+1)}>重新進入</button></div>
+ if(!ready)return <div className="gate-loading"><div className="spinner"/><p>正在準備搶票…</p></div>
+ return children
+}
+
+export function RequireMember({children}:{children:ReactNode}){const {status}=useAccess();const location=useLocation();if(!status?.member)return <Navigate to={`/account?next=${encodeURIComponent(location.pathname+location.search)}`} replace/>;if(!status.purchaseOpen)return <Navigate to="/" replace/>;return <PlayerGate member={status.member}>{children}</PlayerGate>}
