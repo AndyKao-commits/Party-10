@@ -165,9 +165,9 @@ export function validateCard(input: {
   cvv: string
 }) {
   if (isSupabaseMode) return supabaseApi.validateCard(input)
-  // Local LAN: accept any 16-digit + 4 cvv for party convenience
+  // Local LAN: accept any 15+ digit card number with a 3-digit security code.
   const n = input.cardNumber.replace(/\s/g, '')
-  return Promise.resolve({ ok: n.length >= 15 && input.cvv.length >= 3 })
+  return Promise.resolve({ ok: n.length >= 15 && /^\d{3}$/.test(input.cvv) })
 }
 
 export function joinUrl(code: string) {

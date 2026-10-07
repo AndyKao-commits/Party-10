@@ -48,6 +48,10 @@ export function CheckoutPage() {
       setError('請輸入派對假信用卡資料')
       return
     }
+    if (!/^\d{3}$/.test(cvv)) {
+      setError('安全碼請輸入 3 碼數字')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -131,9 +135,11 @@ export function CheckoutPage() {
               <label>安全碼</label>
               <input
                 value={cvv}
-                onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 3))}
                 inputMode="numeric"
-                placeholder="4 碼"
+                autoComplete="cc-csc"
+                maxLength={3}
+                placeholder="3 碼"
               />
             </div>
           </div>
