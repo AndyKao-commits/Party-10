@@ -179,8 +179,8 @@ export function QtyPage() {
   return <Shell><div className="page-card flash"><StepBar current={2}/><div style={{padding:16}}>
     <h2>自行選位</h2><p>{area.name} · NT$ {area.price.toLocaleString()} / 張</p>
     <div className="seat-stage">舞台 / 活動主場</div>
-    <div className="seat-legend"><span>□ 可選</span><span>■ 已選</span><span>▧ 已售</span></div>
-    <div className="seat-map" aria-label="座位圖">{seats.map(seat => <button type="button" key={seat.id} disabled={seat.sold} aria-pressed={valid.includes(seat.id)} aria-label={`${seat.label}${seat.sold ? ' 已售' : ''}`} className={`seat ${seat.sold ? 'sold' : ''} ${valid.includes(seat.id) ? 'chosen' : ''}`} onClick={() => toggle(seat.id)}>{seat.label}</button>)}</div>
+    <div className="seat-legend"><span>□ 可選</span><span>■ 已選</span><span>▧ 不可選</span></div>
+    <div className="seat-map" aria-label="座位圖">{seats.map(seat => <button type="button" key={seat.id} disabled={seat.sold} aria-pressed={valid.includes(seat.id)} aria-label={`${seat.label}${seat.sold ? ' 不可選' : ''}`} className={`seat ${seat.sold ? 'sold' : ''} ${valid.includes(seat.id) ? 'chosen' : ''}`} onClick={() => toggle(seat.id)}>{seat.label}</button>)}</div>
     {seats.length === 0 && <div className="error-box">沒有可選座位，請聯絡主辦更新座位資料。</div>}
     <p className="muted">點選座位不會保留，送出購票成功後才成立。每筆最多 {room.maxPerOrder} 張。</p>
     {notice && <div role="status" className="error-box">{notice}</div>}

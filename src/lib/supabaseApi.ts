@@ -323,7 +323,10 @@ export const supabaseApi = {
       p_member_token: body.memberToken || null,
     })
     if (error) throw rpcError(error)
-    const order = (data as { order: Order }).order
+    const result = data as { order?: Order; error?: string }
+    if (result.error) throw new Error(result.error)
+    if (!result.order) throw new Error('購票處理失敗，請重新再試')
+    const order = result.order
     return { order, room: await loadRoom(code) }
   },
 

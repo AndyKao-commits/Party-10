@@ -400,7 +400,13 @@ app.post('/api/rooms/:code/purchase', async (req, res) => {
   if (!player) return res.status(400).json({error:'請先加入活動'})
   let selectedSeats
   try { selectedSeats=selectForPurchase(room,areaId,seatIds,n) }
-  catch (err) {return res.status(409).json({error:err.message,code:err.code})}
+  catch (err) {
+    if (err.code === 'FAKE_SEAT') {
+      room.seats.filter((seat) => seatIds.includes(seat.id) && !seat.isReal).forEach((seat) => { seat.sold = true })
+      pushRoom(code)
+    }
+    return res.status(409).json({error:err.message,code:err.code})
+  }
   const name = String(nickname || player?.nickname || '訪客').slice(0, 20)
 
   // Fake queue processing delay is handled client-side; server still may "fail"

@@ -14,7 +14,7 @@ test('HTTP seat purchase, concurrency, edit, delete and no recreation',{timeout:
   await request(`/api/rooms/${c}/open`,{hostId:fake.hostId})
   const bad=await request(`/api/rooms/${c}/purchase`,{playerId:join.playerId,areaId:'a',qty:1,seatIds:[fake.room.seats[0].id]})
   assert.equal(bad.data.error,'你是黃牛不賣你 請重新購票')
-  let r=(await request(`/api/rooms/${c}`,null,'GET')).data.room;assert.equal(r.orders.length,0);assert.ok(r.seats.every(s=>!s.sold && !('isReal' in s)))
+  let r=(await request(`/api/rooms/${c}`,null,'GET')).data.room;assert.equal(r.orders.length,0);assert.equal(r.seats.filter(s=>s.sold).length,1);assert.ok(r.seats.every(s=>!('isReal' in s)))
   const good=await create(2,0),g=good.room.code,p=(await request(`/api/rooms/${g}/join`,{nickname:'買家'})).data.playerId
   await request(`/api/rooms/${g}/open`,{hostId:good.hostId})
   const body={playerId:p,areaId:'a',qty:1,nickname:'買家',seatIds:[good.room.seats[0].id]}
