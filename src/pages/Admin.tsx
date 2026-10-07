@@ -69,7 +69,7 @@ const emptyEventForm = () => ({
   maxPerOrder: 2,
   failChance: 15,
   featured: true,
-  areas: [{ id: 'general', name: '烤肉席', price: 700, realSeats: 18, fakeSeats: 18, color: '#16a34a' }],
+  areas: [{ id: 'general', name: '烤肉席', price: 700, realSeats: 18, fakeSeats: 18, color: '#16a34a', ticketContent: '請於活動開始前 30 分鐘完成報到。' }],
   imageUrl: '/events/bbq-party.jpg',
 })
 
@@ -207,7 +207,7 @@ export function AdminPage() {
       maxPerOrder: ev.maxPerOrder || 2,
       failChance: Math.round((ev.failChance ?? 0.15) * 100),
       featured: ev.featured,
-      areas: (ev.areas || []).map(a => ({ id: a.id, name: a.name, price: a.price, realSeats: a.realSeats, fakeSeats: a.fakeSeats, color: a.color })),
+      areas: (ev.areas || []).map(a => ({ id: a.id, name: a.name, price: a.price, realSeats: a.realSeats, fakeSeats: a.fakeSeats, color: a.color, ticketContent: a.ticketContent || '' })),
       imageUrl: ev.imageUrl || '',
     })
     setTab('events')
@@ -401,10 +401,11 @@ export function AdminPage() {
                     </div>)}
                   </div>
                   <div className="field"><label>票區顏色</label><input type="color" value={area.color} onChange={e => setForm(f => ({...f,areas:f.areas.map((a,i) => i === index ? {...a,color:e.target.value} : a)}))}/></div>
+                  <div className="field"><label>票券專屬內容</label><textarea rows={3} maxLength={500} value={area.ticketContent} onChange={e => setForm(f => ({...f,areas:f.areas.map((a,i) => i === index ? {...a,ticketContent:e.target.value} : a)}))} placeholder="只會顯示在訂單查詢 → 取票後的電子票券上"/><small className="muted">此內容不會顯示在購票頁，可填入場方式、兌換內容或派對任務。</small></div>
                   {form.areas.length > 1 && <button type="button" className="btn btn-ghost" onClick={() => setForm(f => ({...f,areas:f.areas.filter((_,i) => i !== index)}))}>移除票區</button>}
                 </fieldset>
               ))}
-              <button type="button" className="btn btn-ghost" onClick={() => setForm(f => ({...f,areas:[...f.areas,{id:crypto.randomUUID(),name:'新票區',price:700,realSeats:10,fakeSeats:10,color:'#16a34a'}]}))}>新增票區</button>
+              <button type="button" className="btn btn-ghost" onClick={() => setForm(f => ({...f,areas:[...f.areas,{id:crypto.randomUUID(),name:'新票區',price:700,realSeats:10,fakeSeats:10,color:'#16a34a',ticketContent:''}]}))}>新增票區</button>
               <div className="field-row">
                 <div className="field"><label>每筆限購</label><input type="number" min={1} max={4} required value={form.maxPerOrder} onChange={e => setForm(f => ({...f,maxPerOrder:Number(e.target.value)}))}/></div>
                 <div className="field"><label>假忙線 %</label><input type="number" min={0} max={60} required value={form.failChance} onChange={e => setForm(f => ({...f,failChance:Number(e.target.value)}))}/></div>
