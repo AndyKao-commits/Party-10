@@ -488,6 +488,7 @@ export const supabaseApi = {
     expYear: string
     cvv: string
   }) {
+    if (!/^\d{3}$/.test(input.cvv)) return { ok: false }
     const sb = getSupabase()!
     const { data, error } = await sb.rpc('validate_fake_card', {
       p_card_number: input.cardNumber,
