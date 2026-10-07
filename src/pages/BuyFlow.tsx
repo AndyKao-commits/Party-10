@@ -124,7 +124,7 @@ export function AreaPage() {
           <div className="ticket-area-head"><span>顏色 / 票區</span><span>票價 NT$</span><span>空位</span></div>
           <div className="ticket-area-list">
             {room.areas.map((a) => {
-              const available = room.seats.filter(s => s.areaId === a.id && !s.sold).length
+              const available = a.remaining
               return (
               <button
                 key={a.id}

@@ -50,6 +50,7 @@ export function ActivityPage() {
   }
 
   const saleOpen = room.saleOpen || done
+  const soldOut = totalLeft <= 0
 
   return (
     <Shell>
@@ -67,8 +68,8 @@ export function ActivityPage() {
 
           <div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-              <span className={`status-pill ${saleOpen ? 'hot' : ''}`}>
-                {saleOpen ? '熱賣中 / 搶票中' : '即將開賣'}
+              <span className={`status-pill ${saleOpen && !soldOut ? 'hot' : ''}`}>
+                {soldOut ? '已售完' : saleOpen ? '熱賣中 / 搶票中' : '即將開賣'}
               </span>
               <span className="status-pill">{connected ? '即時連線' : '重連中…'}</span>
               <span className="status-pill">房間 {room.code}</span>
@@ -118,10 +119,10 @@ export function ActivityPage() {
               </div>
               <button
                 className="btn btn-orange buy-cta"
-                disabled={!saleOpen || needsJoin || !status?.purchaseOpen}
+                disabled={!saleOpen || soldOut || needsJoin || !status?.purchaseOpen}
                 onClick={() => nav(`/r/${code}/queue`)}
               >
-                {!status?.purchaseOpen ? '購票尚未開放' : saleOpen ? '線上購票' : '尚未開賣'}
+                {soldOut ? '已售完' : !status?.purchaseOpen ? '購票尚未開放' : saleOpen ? '線上購票' : '尚未開賣'}
               </button>
             </div>
 
@@ -203,14 +204,14 @@ export function ActivityPage() {
                 <tr>
                   <td>{room.dateText}</td>
                   <td>{room.venue}</td>
-                  <td>{saleOpen ? '熱賣中' : '即將開賣'}</td>
+                  <td>{soldOut ? '已售完' : saleOpen ? '熱賣中' : '即將開賣'}</td>
                   <td>
                     <button
                       className="btn btn-orange"
-                      disabled={!saleOpen || !status?.purchaseOpen}
+                      disabled={!saleOpen || soldOut || !status?.purchaseOpen}
                       onClick={() => nav(`/r/${code}/queue`)}
                     >
-                      線上購票
+                      {soldOut ? '已售完' : '線上購票'}
                     </button>
                   </td>
                 </tr>

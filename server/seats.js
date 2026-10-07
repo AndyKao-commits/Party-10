@@ -1,5 +1,18 @@
 import { randomUUID, randomInt } from 'node:crypto'
 
+export const FAKE_SEAT_WARNINGS = [
+  '你是黃牛不讓你買，請重新選位',
+  '此座位已被其他人搶先購買',
+  '此座位已被神秘嘉賓預留',
+  '系統偵測到可疑手速，本席暫不出售',
+  '這個位置已經有主人了，換一個吧',
+  '很抱歉，你與這個座位緣分未到',
+  '此座位正在裝忙，暫時不接客',
+  '手速很快，但命運更快',
+  '工作人員偷偷保留了這個位置',
+  '系統判定：這張票不屬於你',
+]
+
 export function validateAreas(areas) {
   if (!Array.isArray(areas) || !areas.length || areas.length > 20) throw new Error('請設定 1～20 個票區')
   const ids = new Set()
@@ -43,6 +56,6 @@ export function selectForPurchase(room, areaId, seatIds, qty) {
   const selected = seatIds.map(id => room.seats.find(s => s.id === id && s.areaId === areaId))
   if (selected.some(s => !s)) throw new Error('座位資料失效，請重新選位')
   if (selected.some(s => s.sold)) throw Object.assign(new Error('座位已被購買，請重新選位'),{code:'SEAT_TAKEN'})
-  if (selected.some(s => !s.isReal)) throw Object.assign(new Error('你是黃牛不賣你 請重新購票'),{code:'FAKE_SEAT'})
+  if (selected.some(s => !s.isReal)) throw Object.assign(new Error(FAKE_SEAT_WARNINGS[randomInt(FAKE_SEAT_WARNINGS.length)]),{code:'FAKE_SEAT'})
   return selected
 }
