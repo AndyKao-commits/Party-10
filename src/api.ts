@@ -1,4 +1,4 @@
-import type { Room, Order, TicketArea, PartyMember, SiteStatus } from './types'
+import type { Room, Order, TicketArea, PartyMember, SiteStatus, TicketLookupOrder } from './types'
 import type { FakeEvent } from './data/catalog'
 import type { FakeCard } from './lib/cards'
 import { isSupabaseMode } from './lib/supabase'
@@ -168,6 +168,16 @@ export function validateCard(input: {
   // Local LAN: accept any 15+ digit card number with a 3-digit security code.
   const n = input.cardNumber.replace(/\s/g, '')
   return Promise.resolve({ ok: n.length >= 15 && /^\d{3}$/.test(input.cvv) })
+}
+
+export function lookupTicketOrders(phone: string) {
+  if (isSupabaseMode) return supabaseApi.lookupTicketOrders(phone)
+  return Promise.resolve({ orders: [] as TicketLookupOrder[] })
+}
+
+export function pickupTicketOrder(phone: string, orderId: string) {
+  if (isSupabaseMode) return supabaseApi.pickupTicketOrder(phone, orderId)
+  return Promise.resolve({ pickedUpAt: Date.now() })
 }
 
 export function joinUrl(code: string) {

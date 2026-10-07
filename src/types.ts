@@ -6,6 +6,7 @@ export type TicketArea = {
   remaining: number
   color: string
   soldOut?: boolean
+  ticketContent?: string
 }
 
 export type Order = {
@@ -17,6 +18,23 @@ export type Order = {
   seats: string[]
   code: string
   createdAt: number
+}
+
+export type TicketLookupOrder = {
+  id: string
+  eventCode: string
+  eventTitle: string
+  eventDate: string
+  eventImage?: string
+  buyerName: string
+  areaName: string
+  qty: number
+  unitPrice?: number
+  orderCode: string
+  createdAt: number
+  pickedUpAt?: number | null
+  ticketContent: string
+  tickets: { seat: string; ticketCode: string }[]
 }
 
 export type Seat = { id: string; areaId: string; label: string; position: number; sold: boolean }

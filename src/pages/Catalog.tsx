@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { getRoom, listDecoys, listEvents, type LiveEvent } from '../api'
+import { getRoom, listDecoys, listEvents, lookupTicketOrders, pickupTicketOrder, type LiveEvent } from '../api'
 import { startPrankAudio } from '../lib/prankAudio'
 import { EventOverview } from '../components/EventOverview'
 import { Shell } from '../components/Layout'
@@ -12,7 +12,7 @@ import {
   getEventBySlug,
   type FakeEvent,
 } from '../data/catalog'
-import type { Room } from '../types'
+import type { Room, TicketLookupOrder } from '../types'
 import { useAccess } from '../lib/access'
 
 function statusLabel(e: FakeEvent) {
@@ -535,33 +535,83 @@ export function NewsPage() {
 
 export function OrdersPage() {
   const [phone, setPhone] = useState('')
+  const [orders, setOrders] = useState<TicketLookupOrder[]>([])
+  const [opened, setOpened] = useState<TicketLookupOrder | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const searchOrders = async () => {
+    const normalized = phone.replace(/\D/g, '')
+    if (!normalized) { setMsg('請輸入手機號碼'); return }
+    setBusy(true); setMsg(null); setOpened(null)
+    try {
+      const result = await lookupTicketOrders(normalized)
+      setOrders(result.orders)
+      if (!result.orders.length) setMsg('查無訂單，請確認輸入的是註冊時使用的電話號碼。')
+    } catch (err) {
+      setOrders([])
+      setMsg(err instanceof Error ? err.message : '訂單查詢失敗')
+    } finally { setBusy(false) }
+  }
+
+  const pickup = async (order: TicketLookupOrder) => {
+    setBusy(true); setMsg(null)
+    try {
+      const result = await pickupTicketOrder(phone, order.id)
+      const updated = { ...order, pickedUpAt: result.pickedUpAt }
+      setOrders(list => list.map(item => item.id === order.id ? updated : item))
+      setOpened(updated)
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : '取票失敗')
+    } finally { setBusy(false) }
+  }
 
   return (
     <Shell>
+      {opened && <div className="ticket-viewer" role="dialog" aria-modal="true" aria-label="電子票券">
+        <div className="ticket-viewer__bar"><strong>電子票券</strong><button type="button" onClick={() => setOpened(null)} aria-label="關閉票券">關閉</button></div>
+        <div className="digital-ticket-stack">
+          {opened.tickets.map(ticket => <article className="digital-ticket" key={ticket.ticketCode}>
+            <div className="digital-ticket__art" style={opened.eventImage ? {backgroundImage:`linear-gradient(180deg,#09271933,#092719dd),url(${opened.eventImage})`} : undefined}>
+              <span>PBON DIGITAL TICKET</span><h2>{opened.eventTitle}</h2><p>{opened.eventDate}</p>
+            </div>
+            <div className="digital-ticket__body">
+              <div className="ticket-seat"><small>{opened.areaName}</small><strong>{ticket.seat}</strong></div>
+              <dl><dt>購票人</dt><dd>{opened.buyerName}</dd><dt>票價</dt><dd>NT$ {(opened.unitPrice || 0).toLocaleString()}</dd><dt>取票序號</dt><dd>{ticket.ticketCode}</dd></dl>
+              {opened.ticketContent && <div className="ticket-special"><strong>票券內容</strong><p>{opened.ticketContent}</p></div>}
+              <div className="ticket-bars" aria-hidden="true" />
+              <small className="ticket-disclaimer">派對娛樂票券・無真實交易效力</small>
+            </div>
+          </article>)}
+        </div>
+      </div>}
       <form
         className="page-card host-panel flash"
-        onSubmit={(e) => {
-          e.preventDefault()
-          setMsg(
-            phone.trim()
-              ? '查無訂單。若剛完成購票，請保留成功頁截圖。'
-              : '請輸入手機號碼',
-          )
-        }}
+        onSubmit={(e) => { e.preventDefault(); void searchOrders() }}
       >
         <h2 style={{ marginTop: 0 }}>訂單查詢</h2>
+        <p className="muted">輸入註冊時使用的電話號碼，即可查詢並領取電子票券。</p>
         <div className="field">
           <label>手機號碼</label>
           <input
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
             inputMode="tel"
+            autoComplete="tel"
+            placeholder="例如 0912345678"
           />
         </div>
         {msg && <div className="error-box">{msg}</div>}
-        <button className="btn btn-green btn-block">查詢</button>
+        <button className="btn btn-green btn-block" disabled={busy}>{busy ? '查詢中…' : '查詢'}</button>
       </form>
+      {orders.length > 0 && <section className="order-results">
+        <h3>找到 {orders.length} 筆訂單</h3>
+        {orders.map(order => <article className="order-result-card" key={order.id}>
+          <div><span className="status-pill">{order.pickedUpAt ? '已取票' : '尚未取票'}</span><h3>{order.eventTitle}</h3><p>{order.eventDate}</p></div>
+          <dl><dt>購票人</dt><dd>{order.buyerName}</dd><dt>票區／座位</dt><dd>{order.areaName} · {order.tickets.map(ticket => ticket.seat).join('、')}</dd><dt>金額</dt><dd>NT$ {((order.unitPrice || 0) * order.qty).toLocaleString()}</dd><dt>訂單序號</dt><dd className="order-code">{order.orderCode}</dd></dl>
+          <button type="button" className="btn btn-orange btn-block" disabled={busy} onClick={() => void pickup(order)}>{order.pickedUpAt ? '再次開啟票券' : '取票'}</button>
+        </article>)}
+      </section>}
     </Shell>
   )
 }
