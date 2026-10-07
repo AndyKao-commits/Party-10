@@ -1,5 +1,5 @@
 import type { FakeEvent } from '../data/catalog'
-import type { Order, Room, TicketArea, Seat, PartyMember, SiteStatus } from '../types'
+import type { Order, Room, TicketArea, Seat, PartyMember, SiteStatus, TicketLookupOrder } from '../types'
 import { getSupabase } from './supabase'
 
 function mapDecoyRow(e: Record<string, unknown>): FakeEvent {
@@ -43,6 +43,7 @@ type AreaRow = {
   total: number
   remaining: number
   color: string
+  ticket_content?: string
 }
 
 type OrderRow = {
@@ -65,6 +66,7 @@ function mapAreas(rows: AreaRow[]): TicketArea[] {
     remaining: a.remaining,
     color: a.color,
     soldOut: a.remaining <= 0,
+    ticketContent: a.ticket_content || '',
   }))
 }
 
@@ -242,7 +244,7 @@ export const supabaseApi = {
           maxPerOrder: Number(r.max_per_order || 2),
           failChance: Number(r.fail_chance || 0),
           imageUrl: (r.image_url as string) || '',
-          areas: (areas || []).map(a => ({...a,realSeats:Number(a.real_seats ?? a.total),fakeSeats:Number(a.fake_seats ?? 0)})),
+          areas: (areas || []).map(a => ({...a,ticketContent:String(a.ticket_content || ''),realSeats:Number(a.real_seats ?? a.total),fakeSeats:Number(a.fake_seats ?? 0)})),
           totalTickets,
           remaining,
         }
@@ -498,5 +500,17 @@ export const supabaseApi = {
     })
     if (error) throw new Error(error.message)
     return { ok: Boolean(data) }
+  },
+
+  async lookupTicketOrders(phone: string) {
+    const { data, error } = await getSupabase()!.rpc('lookup_ticket_orders', { p_phone: phone })
+    if (error) throw new Error(error.message)
+    return { orders: (data || []) as TicketLookupOrder[] }
+  },
+
+  async pickupTicketOrder(phone: string, orderId: string) {
+    const { data, error } = await getSupabase()!.rpc('pickup_ticket_order', { p_phone: phone, p_order_id: orderId })
+    if (error) throw new Error(error.message)
+    return { pickedUpAt: Number(data) }
   },
 }
